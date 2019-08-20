@@ -1,4 +1,8 @@
-# Python utils for Twitch
+# Python utils for Twitch [![PyPI version](https://badge.fury.io/py/tdh-twitch-utils.svg)](https://badge.fury.io/py/tdh-twitch-utils)
+
+```
+pip3 install tdh-twitch-utils
+```
 
 This module consists of three different scripts:
 
@@ -75,13 +79,4 @@ twitch_utils offset template.mp4 YOUR_FILE.mp4
 # Same command, but result will be rounded to nearest integer
 twitch_utils offset template.mp4 YOUR_FILE.mp4 --round
 # ... returns 123
-```
-
-# Installation
-
-```
-git clone https://github.com/TheDrHax/Twitch-Utils.git
-cd Twitch-Utils
-pip3 install -r requirements.txt
-pip3 install .
 ```
