@@ -47,10 +47,9 @@ def find_offset(f1: str, f2: str,
     c1 = Clip(f1).slice(start, chunk_size + start, ar=ar)[0]
     c2 = Clip(f2)
 
-    position = start
     offset, score = 0, 0
-    while position < c2.duration:
-        chunk = c2.slice(position, chunk_size, ar=ar)[0]
+
+    for position, chunk in c2.slice_generator(start, chunk_size, ar=ar):
         new_offset, new_score = c1.offset(chunk)
 
         print(f'{position} / {c2.duration} | {new_offset} | {new_score}',
@@ -59,14 +58,12 @@ def find_offset(f1: str, f2: str,
         if new_score > score:
             score = new_score
             offset = position + new_offset - start
-        
+
         if threshold != 0 and score >= threshold:
             break
 
         if end != 0 and position >= end:
             break
-
-        position += chunk_size
 
     return offset, score
 

@@ -2,6 +2,7 @@ import os
 import json
 import parselmouth as pm
 
+from multiprocessing.pool import ThreadPool
 from subprocess import run, PIPE
 from tempfile import NamedTemporaryFile
 
@@ -61,6 +62,28 @@ class Clip(object):
             raise Exception('ffmpeg exited with non-zero code')
 
         return [Clip(chunk.name, tmpfile=chunk) for chunk in results]
+
+    def slice_generator(self, start: float, duration: float, **kwargs):
+        pool = ThreadPool(1)
+        kwargs['chunks'] = 1
+
+        position = start
+        async_result = None
+
+        while position < self.duration:
+            result = None
+
+            if async_result:
+                result = async_result.get()[0]
+                position += duration
+
+            async_result = pool.apply_async(self.slice, kwds=kwargs,
+                                            args=(position, duration))
+
+            if result:
+                yield position - duration, result
+
+        pool.close()
 
     def offset(self, clip: 'Clip') -> (float, float):
         """Find position of this Clip in another Clip (may be negative).
