@@ -29,6 +29,7 @@ Usage examples:
 """
 
 import os
+import sys
 
 from docopt import docopt
 
@@ -48,6 +49,9 @@ def find_offset(f1: str, f2: str,
     while position < c2.duration:
         chunk = c2.slice(position, chunk_size)[0]
         new_offset, new_score = c1.offset(chunk)
+
+        print(f'{position} / {c2.duration} | {new_offset} | {new_score}',
+              file=sys.stderr)
 
         if new_score > score:
             score = new_score
