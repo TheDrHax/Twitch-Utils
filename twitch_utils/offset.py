@@ -11,7 +11,9 @@ Options:
   -e <t>, --end <t>         stop matching at this offset of FILE2
   -c <t>, --chunk-size <t>  split input to chunks of this length [default: 60]
   -t <threshold>            stop when cross-correlation score is greater than
-                            or equal to this value [default: 1500]
+                            or equal to this value [default: 200]
+  -r <frequency>            WAV sampling frequency (lower is faster but less accurate) [default: 5000]
+                            Warning: This option affects cross-correlation score.
 
 Output parameters:
   --round                   output integer instead of float
@@ -40,14 +42,15 @@ def find_offset(f1: str, f2: str,
                 start: float = 0,
                 end: float = 0,
                 chunk_size: float = 60,
-                threshold: int = 1500) -> (float, float):
-    c1 = Clip(f1).slice(start, chunk_size + start)[0]
+                threshold: int = 200,
+                ar: int = 5000) -> (float, float):
+    c1 = Clip(f1).slice(start, chunk_size + start, ar=ar)[0]
     c2 = Clip(f2)
 
     position = start
     offset, score = 0, 0
     while position < c2.duration:
-        chunk = c2.slice(position, chunk_size)[0]
+        chunk = c2.slice(position, chunk_size, ar=ar)[0]
         new_offset, new_score = c1.offset(chunk)
 
         print(f'{position} / {c2.duration} | {new_offset} | {new_score}',
@@ -77,7 +80,8 @@ def main(argv=None):
         'start': float(args['--start']),
         'end': float(args['--end']) if args['--end'] else 0,
         'chunk_size': float(args['--chunk-size']),
-        'threshold': float(args['-t'])
+        'threshold': float(args['-t']),
+        'ar': int(args['-r'])
     }
 
     offset, score = find_offset(**kwargs)
