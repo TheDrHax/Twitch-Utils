@@ -48,6 +48,10 @@ class Clip(object):
         for i in range(chunks):
             tmp = NamedTemporaryFile()
             results.append(tmp)
+
+            if self.duration < start + duration:
+                duration = self.duration - start
+
             output = (f'-f {format} -ss {duration * i} '
                       f'-t {duration} {tmp.name}').split()
             command.extend(output)
