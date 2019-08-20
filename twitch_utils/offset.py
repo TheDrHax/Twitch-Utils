@@ -7,17 +7,25 @@ Matching is performed by cross-correlation of audio tracks.
 Video, subtitles and metadata will be ignored.
 
 Options:
-  -s <t>, --start <t>       skip <t> seconds at the beggining of both files [default: 0]
-  -e <t>, --end <t>         stop matching at this offset of FILE2
-  -c <t>, --chunk-size <t>  split input to chunks of this length [default: 60]
-  -t <threshold>            stop when cross-correlation score is greater than
-                            or equal to this value [default: 200]
-  -r <frequency>            WAV sampling frequency (lower is faster but less accurate) [default: 5000]
-                            Warning: This option affects cross-correlation score.
+  -s <t>, --start <t>       Skip <t> seconds at the beggining of FILE2. [default: 0]
+  -e <t>, --end <t>         Stop matching at this offset of FILE2.
+  -t <t>, --split <t>       Split input to chunks of this length. [default: 300]
+  -r <frequency>            WAV sampling frequency (lower is faster but less accurate). [default: 5000]
+
+Exit conditions:
+  --score-multiplier <N>    Stop computation if current score is at least N times bigger than
+                            average of all scores calculated so far. [default: 4]
+
+  --min-score <value>       Minimum cross-correlation score to be treated as potential match.
+  --max-score <value>       Stop computation if cross-correlation score exceeds this value.
+
+  WARNING: cross-correlation score depends on many factors such as segment
+  length, audio sampling frequency and volume of the audio track. Be careful
+  when using absolute values.
 
 Output parameters:
-  --round                   output integer instead of float
-  --score                   output cross-correlation score along with offset
+  --round                   Output integer instead of float
+  --score                   Output cross-correlation score along with offset
 
 Usage examples:
 
@@ -40,44 +48,74 @@ from .clip import Clip
 
 def find_offset(f1: str, f2: str,
                 start: float = 0,
-                end: float = 0,
-                chunk_size: float = 60,
-                threshold: int = 200,
+                end: float = None,
+                chunk_size: float = 300,
+                min_score: float = None,
+                max_score: float = None,
+                score_multiplier: float = 4,
                 ar: int = 5000) -> (float, float):
-    c1 = Clip(f1).slice(start, chunk_size + start, ar=ar)[0]
+    c1 = Clip(f1).slice(0, chunk_size, ar=ar)[0]
     c2 = Clip(f2)
 
-    offset, score = 0, 0
+    local_offset, local_score = 0, 0
+    global_offset, global_score = 0, 0
+    scores = []
 
     for position, chunk in c2.slice_generator(start, chunk_size, ar=ar):
         new_offset, new_score = c1.offset(chunk)
+        scores.append(new_score)
 
         print(f'{position} / {c2.duration} | {new_offset} | {new_score}',
               file=sys.stderr)
 
-        if new_score > score:
-            score = new_score
-            offset = position + new_offset - start
+        if min_score is not None and min_score > new_score:
+            continue
 
-        if threshold != 0 and score >= threshold:
+        if max_score is not None and new_score >= max_score:
             break
 
-        if end != 0 and position >= end:
+        # calculate local and global maxima
+        if len(scores) == 0 or \
+           len(scores) == 1 and scores[-1] > local_score or \
+           len(scores) >= 2 and scores[-1] > scores[-2]:
+            local_score = new_score
+            local_offset = position + new_offset
+
+            if local_score > global_score:
+                global_score = local_score
+                global_offset = local_offset
+
+        # detect a local maximum and stop if it matches exit conditions
+        if len(scores) >= 2 and scores[-1] < scores[-2]:
+            average = sum(scores) / len(scores)
+            if scores[-2] / score_multiplier > average or \
+               scores[-1] * score_multiplier < average:
+                return local_offset, local_score
+
+        if end is not None and position >= end:
             break
 
-    return offset, score
+    return global_offset, global_score
 
 
 def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
+    def get_arg(key, default_value, func=lambda x: x):
+        if key in args and args[key] is not None:
+            return func(args[key])
+        else:
+            return default_value
+
     kwargs = {
         'f1': args['FILE1'],
         'f2': args['FILE2'],
         'start': float(args['--start']),
-        'end': float(args['--end']) if args['--end'] else 0,
-        'chunk_size': float(args['--chunk-size']),
-        'threshold': float(args['-t']),
+        'end': get_arg('--end', None, float),
+        'chunk_size': float(args['--split']),
+        'min_score': get_arg('--min-score', None, float),
+        'max_score': get_arg('--max-score', None, float),
+        'score_multiplier': float(args['--score-multiplier']),
         'ar': int(args['-r'])
     }
 
