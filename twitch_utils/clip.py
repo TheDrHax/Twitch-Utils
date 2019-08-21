@@ -45,17 +45,23 @@ class Clip(object):
         command = (f'ffmpeg -y -v error -ss {start} '
                    f'-i {self.path} -vn').split()
 
+        if start > self.duration:
+            return []
+
         results = []
         for i in range(chunks):
+            chunk_end = start + duration * (i + 1)
+            if self.duration < chunk_end:
+                duration -= chunk_end - self.duration
+
+            if duration <= 0:  # nothing left
+                break
+
             tmp = NamedTemporaryFile()
-            results.append(tmp)
-
-            if self.duration < start + duration:
-                duration = self.duration - start
-
             output = (f'-ar {ar} -f {format} -ss {duration * i} '
                       f'-t {duration} {tmp.name}').split()
             command.extend(output)
+            results.append(tmp)
 
         if run(command).returncode != 0:
             [chunk.close() for chunk in results]
