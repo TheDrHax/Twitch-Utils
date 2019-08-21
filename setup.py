@@ -17,6 +17,7 @@ setup(
     description='Record, concatenate and synchronize Twitch live streams',
     long_description=long_description,
     long_description_content_type='text/markdown',
+    url='https://github.com/TheDrHax/Twitch-Utils',
 
     install_requires=[
         'tdh-tcd==2.4'
