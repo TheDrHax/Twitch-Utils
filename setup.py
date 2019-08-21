@@ -9,7 +9,7 @@ with open('README.md', 'r') as fi:
 
 setup(
     name='tdh-twitch-utils',
-    version='1.0',
+    version='1.0.1',
 
     author='Dmitry Karikh',
     author_email='the.dr.hax@gmail.com',
