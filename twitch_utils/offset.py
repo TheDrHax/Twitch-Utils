@@ -9,7 +9,9 @@ Video, subtitles and metadata will be ignored.
 Options:
   -s <t>, --start <t>       Skip <t> seconds at the beggining of FILE2. [default: 0]
   -e <t>, --end <t>         Stop matching at this offset of FILE2.
-  -t <t>, --split <t>       Split input to chunks of this length. [default: 300]
+  -t <t>, --split <t>       Split FILE2 into chunks of this length. [default: 300]
+  --template-start <t>      Template chunk will be cut from FILE1 starting at this offset. [default: 0]
+  --template-duration <t>   Duration of template chunk. [default: 60]
   -r <frequency>            WAV sampling frequency (lower is faster but less accurate). [default: 5000]
 
 Exit conditions:
@@ -17,6 +19,8 @@ Exit conditions:
                             average of all scores calculated so far. [default: 4]
 
   --min-score <value>       Minimum cross-correlation score to be treated as potential match.
+                            This option is useful if input files have no collisions at all.
+                            In this case both offset and score will be 0.
   --max-score <value>       Stop computation if cross-correlation score exceeds this value.
 
   WARNING: cross-correlation score depends on many factors such as segment
@@ -47,14 +51,21 @@ from .clip import Clip
 
 
 def find_offset(f1: str, f2: str,
-                start: float = 0,
-                end: float = None,
+                start: float = 0, end: float = None,
                 chunk_size: float = 300,
+                template_start: float = 0,
+                template_duration: float = 60,
                 min_score: float = None,
                 max_score: float = None,
                 score_multiplier: float = 4,
                 ar: int = 5000) -> (float, float):
-    c1 = Clip(f1).slice(0, chunk_size, ar=ar)[0]
+    c1 = Clip(f1)
+
+    if c1.duration < template_start or template_duration <= 0:
+        raise Exception('Template is empty (check start offset and duration)')
+
+    c1 = c1.slice(template_start, template_duration + template_start, ar=ar)[0]
+
     c2 = Clip(f2)
 
     local_offset, local_score = 0, 0
@@ -90,12 +101,12 @@ def find_offset(f1: str, f2: str,
             average = sum(scores) / len(scores)
             if scores[-2] / score_multiplier > average or \
                scores[-1] * score_multiplier < average:
-                return local_offset, local_score
+                return local_offset - template_start, local_score
 
         if end is not None and position >= end:
             break
 
-    return global_offset, global_score
+    return global_offset - template_start, global_score
 
 
 def main(argv=None):
@@ -113,6 +124,8 @@ def main(argv=None):
         'start': float(args['--start']),
         'end': get_arg('--end', None, float),
         'chunk_size': float(args['--split']),
+        'template_start': float(args['--template-start']),
+        'template_duration': float(args['--template-duration']),
         'min_score': get_arg('--min-score', None, float),
         'max_score': get_arg('--max-score', None, float),
         'score_multiplier': float(args['--score-multiplier']),
