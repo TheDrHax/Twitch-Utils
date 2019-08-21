@@ -25,11 +25,23 @@ class Clip(object):
             self.start = float(info['start_time'])
         else:
             self.start = 0
-        self.duration = float(info['duration'])
+
+        self._duration = float(info['duration'])
+        self.__duration = self._duration
+
         self.end = self.start + self.duration
 
         self.inpoint = self.start
         self.outpoint = self.end
+
+    @property
+    def duration(self):
+        return self._duration
+
+    @duration.setter
+    def duration(self, new_value: float):
+        if new_value <= self.__duration:
+            self._duration = new_value
 
     def __del__(self):
         if self._tmpfile:

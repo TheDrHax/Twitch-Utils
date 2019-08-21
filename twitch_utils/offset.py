@@ -68,6 +68,9 @@ def find_offset(f1: str, f2: str,
 
     c2 = Clip(f2)
 
+    if end is not None:
+        c2.duration = end
+
     offset, score = 0, 0
     scores = []
 
@@ -99,9 +102,6 @@ def find_offset(f1: str, f2: str,
 
             if not prev_score < average < curr_score:
                 return offset - template_start, score
-
-        if end is not None and position >= end:
-            break
 
     return 0, 0
 
