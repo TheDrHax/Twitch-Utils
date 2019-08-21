@@ -22,7 +22,7 @@ VOD="YOUR VOD ID"
 streamlink -o 1.ts --hls-duration 60 "twitch.tv/videos/$VOD" best
 streamlink -o 2.ts --hls-start-offset 30 --hls-duration 60 "twitch.tv/videos/$VOD" best
 
-# concatenate segments into one
+# concatenate two segments into one video
 twitch_utils concat 1.ts 2.ts -o result.mp4
 ```
 
@@ -49,10 +49,10 @@ to use `-b` flag.
 ### Example
 
 ```
-# Record live stream of channel 'blackufa' using 2 threads
-# and limiting bandwidth to 2 MB/s
+# Record live stream of channel 'blackufa' using 2 threads and
+# limiting bandwidth to 2 MiB/s
 
-twitch_utils record blackufa -b 2M 
+twitch_utils record blackufa -j 2 -b 2M 
 ```
 
 ## offset
