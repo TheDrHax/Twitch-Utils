@@ -68,8 +68,7 @@ def find_offset(f1: str, f2: str,
 
     c2 = Clip(f2)
 
-    local_offset, local_score = 0, 0
-    global_offset, global_score = 0, 0
+    offset, score = 0, 0
     scores = []
 
     for position, chunk in c2.slice_generator(start, chunk_size, ar=ar):
@@ -79,34 +78,32 @@ def find_offset(f1: str, f2: str,
         print(f'{position} / {c2.duration} | {new_offset} | {new_score}',
               file=sys.stderr)
 
-        if min_score is not None and min_score > new_score:
-            continue
-
         if max_score is not None and new_score >= max_score:
-            break
+            return new_offset - template_start, new_score
 
         # calculate local and global maxima
         if len(scores) == 0 or \
-           len(scores) == 1 and scores[-1] > local_score or \
+           len(scores) == 1 and scores[-1] > score or \
            len(scores) >= 2 and scores[-1] > scores[-2]:
-            local_score = new_score
-            local_offset = position + new_offset
-
-            if local_score > global_score:
-                global_score = local_score
-                global_offset = local_offset
+            score = new_score
+            offset = position + new_offset
 
         # detect a local maximum and stop if it matches exit conditions
         if len(scores) >= 2 and scores[-1] < scores[-2]:
-            average = sum(scores) / len(scores)
-            if scores[-2] / score_multiplier > average or \
-               scores[-1] * score_multiplier < average:
-                return local_offset - template_start, local_score
+            if min_score is not None and scores[-2] < min_score:
+                continue
+
+            average = sum(scores) / len(scores)           
+            prev_score = scores[-2] / score_multiplier
+            curr_score = scores[-1] * score_multiplier
+
+            if not prev_score < average < curr_score:
+                return offset - template_start, score
 
         if end is not None and position >= end:
             break
 
-    return global_offset - template_start, global_score
+    return 0, 0
 
 
 def main(argv=None):
