@@ -15,8 +15,8 @@ Options:
   -r <frequency>            WAV sampling frequency (lower is faster but less accurate). [default: 1000]
 
 Exit conditions:
-  --score-multiplier <N>    Stop computation if current score is at least N times bigger than
-                            average of all scores calculated so far. [default: 4]
+  --score-multiplier <N>    Stop computation if local maximum score is at least
+                            N times bigger than last local minimum. [default: 8]
 
   --min-score <value>       Minimum cross-correlation score to be treated as potential match.
                             This option is useful if input files have no collisions at all.
@@ -57,7 +57,7 @@ def find_offset(f1: str, f2: str,
                 template_duration: float = 120,
                 min_score: float = None,
                 max_score: float = None,
-                score_multiplier: float = 4,
+                score_multiplier: float = 8,
                 ar: int = 1000) -> (float, float):
     c1 = Clip(f1)
 
@@ -71,39 +71,45 @@ def find_offset(f1: str, f2: str,
     if end is not None:
         c2.duration = end
 
-    offset, score = 0, 0
-    scores = []
+    last_best_offset, last_best_score = 0, 0
+    last_worst_score = 0
+    best_offset, best_score = 0, 0
+    prev_score = 0
+
+    print(f'pos | offset | score | mul', file=sys.stderr)
 
     for position, chunk in c2.slice_generator(start, chunk_size, ar=ar):
         new_offset, new_score = c1.offset(chunk)
-        scores.append(new_score)
 
-        print(f'{position} / {c2.duration} | {new_offset} | {new_score}',
+        delta = new_score - prev_score
+        prev_score = new_score
+
+        if new_score > best_score:
+            best_score = new_score
+            best_offset = position + new_offset
+
+        if delta > 0:
+            last_best_score = new_score
+            last_best_offset = position + new_offset
+        else:
+            last_worst_score = new_score
+
+        print(f'{position} | {round(new_offset, 2)} | '
+              f'{round(new_score, 2)} | '
+              f'{round(last_best_score / last_worst_score, 2) if last_worst_score != 0 else "N/A"}',
               file=sys.stderr)
 
         if max_score is not None and new_score >= max_score:
             return new_offset - template_start, new_score
 
-        # calculate local and global maxima
-        if len(scores) == 0 or \
-           len(scores) == 1 and scores[-1] > score or \
-           len(scores) >= 2 and scores[-1] > scores[-2]:
-            score = new_score
-            offset = position + new_offset
+        if last_worst_score > 0 and last_best_score > 0:
+            if last_worst_score * score_multiplier < last_best_score:
+                return last_best_offset - template_start, last_best_score
 
-        # detect a local maximum and stop if it matches exit conditions
-        if len(scores) >= 2 and scores[-1] < scores[-2]:
-            if min_score is not None and scores[-2] < min_score:
-                continue
-
-            average = sum(scores) / len(scores)           
-            prev_score = scores[-2] / score_multiplier
-            curr_score = scores[-1] * score_multiplier
-
-            if not prev_score < average < curr_score:
-                return offset - template_start, score
-
-    return 0, 0
+    if min_score is None or best_score >= min_score:
+        return best_offset, best_score
+    else:
+        return 0, 0
 
 
 def main(argv=None):
