@@ -48,7 +48,7 @@ class Clip(object):
             self._tmpfile.close()
 
     def slice(self, start: float, duration: float, chunks: int = 1,
-              format: str = 'wav', ar: int = 200):
+              format: str = 'wav', ar: int = 1000):
         """Split this Clip into one or multiple temporary Clips.
 
         By default splits only the audio track, outputting chunks
