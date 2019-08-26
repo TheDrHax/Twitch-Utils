@@ -11,8 +11,7 @@ Options:
   -e <t>, --end <t>         Stop matching at this offset of FILE2.
   -t <t>, --split <t>       Split FILE2 into chunks of this length. [default: 300]
   --template-start <t>      Template chunk will be cut from FILE1 starting at this offset. [default: 0]
-  --template-duration <t>   Duration of template chunk. [default: 60]
-  -r <frequency>            WAV sampling frequency (lower is faster but less accurate). [default: 5000]
+  --template-duration <t>   Duration of template chunk. [default: 120]
 
 Exit conditions:
   --score-multiplier <N>    Stop computation if current score is at least N times bigger than
@@ -54,7 +53,7 @@ def find_offset(f1: str, f2: str,
                 start: float = 0, end: float = None,
                 chunk_size: float = 300,
                 template_start: float = 0,
-                template_duration: float = 60,
+                template_duration: float = 120,
                 min_score: float = None,
                 max_score: float = None,
                 score_multiplier: float = 4,
