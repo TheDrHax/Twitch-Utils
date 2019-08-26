@@ -108,7 +108,8 @@ class Clip(object):
         
         Returns two values: offset in seconds and cross-correlation score.
         """
-        s1, s2 = pm.Sound(self.path), pm.Sound(clip.path)
+        s1 = pm.Sound(self.path).convert_to_mono()
+        s2 = pm.Sound(clip.path).convert_to_mono()
         cc = s1.cross_correlate(s2, pm.AmplitudeScaling.SUM)
         score = cc.values.max()
         frame = cc.values.argmax()
