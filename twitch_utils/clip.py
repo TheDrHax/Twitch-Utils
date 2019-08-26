@@ -15,10 +15,14 @@ class Clip(object):
         proc = run(command, stdout=PIPE)
         return json.loads(proc.stdout)
 
-    def __init__(self, path: str, tmpfile=None):
+    def __init__(self, path: str, ar: int = 500,
+                 container: str = 'wav', tmpfile = None):
         self.name = os.path.basename(path)
         self.path = path
         self._tmpfile = tmpfile
+
+        self.ar = ar
+        self.container = container
 
         info = self.clip_info(path)['format']
         if 'start_time' in info:  ## MPEG-TS only
@@ -47,8 +51,7 @@ class Clip(object):
         if self._tmpfile:
             self._tmpfile.close()
 
-    def slice(self, start: float, duration: float, chunks: int = 1,
-              format: str = 'wav', ar: int = 1000):
+    def slice(self, start: float, duration: float, chunks: int = 1):
         """Split this Clip into one or multiple temporary Clips.
 
         By default splits only the audio track, outputting chunks
@@ -70,7 +73,8 @@ class Clip(object):
                 break
 
             tmp = NamedTemporaryFile()
-            output = (f'-ar {ar} -f {format} -ss {duration * i} '
+            output = (f'-ar {self.ar} -f {self.container} '
+                      f'-ss {duration * i} '
                       f'-t {duration} {tmp.name}').split()
             command.extend(output)
             results.append(tmp)
@@ -79,7 +83,11 @@ class Clip(object):
             [chunk.close() for chunk in results]
             raise Exception('ffmpeg exited with non-zero code')
 
-        return [Clip(chunk.name, tmpfile=chunk) for chunk in results]
+        return [Clip(chunk.name,
+                     tmpfile=chunk,
+                     ar=self.ar,
+                     container=self.container)
+                for chunk in results]
 
     def slice_generator(self, start: float, duration: float, **kwargs):
         pool = ThreadPool(1)

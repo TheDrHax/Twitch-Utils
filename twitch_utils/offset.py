@@ -50,24 +50,12 @@ from docopt import docopt
 from .clip import Clip
 
 
-def find_offset(f1: str, f2: str,
+def find_offset(c1: Clip, c2: Clip,
                 start: float = 0, end: float = None,
                 chunk_size: float = 300,
-                template_start: float = 0,
-                template_duration: float = 120,
                 min_score: float = None,
                 max_score: float = None,
-                score_multiplier: float = 8,
-                ar: int = 1000) -> (float, float):
-    c1 = Clip(f1)
-
-    if c1.duration < template_start or template_duration <= 0:
-        raise Exception('Template is empty (check start offset and duration)')
-
-    c1 = c1.slice(template_start, template_duration + template_start, ar=ar)[0]
-
-    c2 = Clip(f2)
-
+                score_multiplier: float = 8) -> (float, float):
     if end is not None:
         c2.duration = end
 
@@ -78,7 +66,7 @@ def find_offset(f1: str, f2: str,
 
     print(f'pos | offset | score | mul', file=sys.stderr)
 
-    for position, chunk in c2.slice_generator(start, chunk_size, ar=ar):
+    for position, chunk in c2.slice_generator(start, chunk_size):
         new_offset, new_score = c1.offset(chunk)
 
         delta = new_score - prev_score
@@ -94,17 +82,22 @@ def find_offset(f1: str, f2: str,
         else:
             last_worst_score = new_score
 
+        if last_worst_score != 0:
+            cur_multiplier = round(last_best_score / last_worst_score, 2)
+        else:
+            cur_multiplier = 'N/A'
+
         print(f'{position} | {round(new_offset, 2)} | '
               f'{round(new_score, 2)} | '
-              f'{round(last_best_score / last_worst_score, 2) if last_worst_score != 0 else "N/A"}',
+              f'{cur_multiplier}',
               file=sys.stderr)
 
         if max_score is not None and new_score >= max_score:
-            return new_offset - template_start, new_score
+            return new_offset, new_score
 
         if last_worst_score > 0 and last_best_score > 0:
             if last_worst_score * score_multiplier < last_best_score:
-                return last_best_offset - template_start, last_best_score
+                return last_best_offset, last_best_score
 
     if min_score is None or best_score >= min_score:
         return best_offset, best_score
@@ -121,22 +114,32 @@ def main(argv=None):
         else:
             return default_value
 
+    template_start = float(args['--template-start'])
+    template_duration = float(args['--template-duration'])
+    ar = int(args['-r'])
+
+    c1 = Clip(args['FILE1'], ar=ar)
+
+    if c1.duration < template_start or template_duration <= 0:
+        raise Exception('Template is empty (check start offset and duration)')
+
+    c1 = c1.slice(template_start, template_duration + template_start)[0]
+
+    c2 = Clip(args['FILE2'], ar=ar)
+
     kwargs = {
-        'f1': args['FILE1'],
-        'f2': args['FILE2'],
         'start': float(args['--start']),
         'end': get_arg('--end', None, float),
         'chunk_size': float(args['--split']),
-        'template_start': float(args['--template-start']),
-        'template_duration': float(args['--template-duration']),
         'min_score': get_arg('--min-score', None, float),
         'max_score': get_arg('--max-score', None, float),
-        'score_multiplier': float(args['--score-multiplier']),
-        'ar': int(args['-r'])
+        'score_multiplier': float(args['--score-multiplier'])
     }
 
-    offset, score = find_offset(**kwargs)
-    
+    offset, score = find_offset(c1, c2, **kwargs)
+
+    offset -= template_start
+
     if args['--round']:
         offset = round(offset)
         score = round(score)
