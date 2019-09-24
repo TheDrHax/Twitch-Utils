@@ -95,6 +95,9 @@ def find_offset(c1: Clip, c2: Clip,
         if max_score is not None and new_score >= max_score:
             return new_offset, new_score
 
+        if min_score is not None and new_score < min_score:
+            continue
+
         if last_worst_score > 0 and last_best_score > 0:
             if last_worst_score * score_multiplier < last_best_score:
                 return last_best_offset, last_best_score
