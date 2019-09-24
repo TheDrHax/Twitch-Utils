@@ -95,11 +95,10 @@ def find_offset(c1: Clip, c2: Clip,
         if max_score is not None and new_score >= max_score:
             return new_offset, new_score
 
-        if min_score is not None and new_score < min_score:
-            continue
-
         if last_worst_score > 0 and last_best_score > 0:
             if last_worst_score * score_multiplier < last_best_score:
+                if min_score is not None and last_best_score < min_score:
+                    continue
                 return last_best_offset, last_best_score
 
     if min_score is None or best_score >= min_score:
@@ -140,6 +139,9 @@ def main(argv=None):
     }
 
     offset, score = find_offset(c1, c2, **kwargs)
+
+    if offset == 0 and score == 0:
+        raise Exception('Videos are not correlated or min-score is too high')
 
     offset -= template_start
 
