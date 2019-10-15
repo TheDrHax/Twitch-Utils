@@ -24,6 +24,12 @@ streamlink -o 2.ts --hls-start-offset 30 --hls-duration 60 "twitch.tv/videos/$VO
 
 # concatenate two segments into one video
 twitch_utils concat 1.ts 2.ts -o result.mp4
+
+# create one segment
+twitch_utils concat 1.ts 2.ts -o result.ts
+
+# pipe concatenated MPEG-TS stream to other applications
+twitch_utils concat 1.ts 2.ts -o - | ffmpeg -i - -c copy result.mp4
 ```
 
 ## record

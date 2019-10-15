@@ -9,9 +9,8 @@ It means that you can record stream, download its beginning
 later and concatenate them by using this script.
 
 Options:
-  -o <name>, --output=<name>  Name of the output file. Must have file
-                              extension of container that supports H264
-                              and AAC streams (MP4, TS, etc.).
+  -o <name>, --output=<name>  Name of the output file. Use '-' to output MPEG-TS
+                              directly to stdout.
 """
 
 import os
@@ -62,15 +61,29 @@ class Timeline(list):
 
     def render(self, path: str = 'full.mp4') -> int:
         concat_map = self.ffconcat_map()
-        print(concat_map)
+        print(concat_map, file=sys.stderr)
 
         map_file = NamedTemporaryFile('w', dir='.')
         map_file.write(concat_map)
         map_file.flush()
 
-        command = (f'ffmpeg -f concat -safe 0 -hide_banner '
-                   f'-i {map_file.name} -c copy -fflags +genpts '
-                   f'-async 1 -movflags faststart {path}').split()
+        command = ['ffmpeg']
+
+        if path.endswith('.ts') or path == '-':
+            command += ['-copyts']
+        
+        command += ['-f', 'concat', '-safe', '0', '-hide_banner',
+                    '-i', map_file.name, '-c', 'copy']
+
+        if path.endswith('.ts') or path == '-':
+            command += ['-muxdelay', '0']
+            if path == '-':
+                command += ['-f', 'mpegts']
+        elif path.endswith('.mp4'):
+            command += ['-fflags', '+genpts', '-async', '1',
+                        '-movflags', 'faststart']
+
+        command += [path]
 
         p = run(command)
 
