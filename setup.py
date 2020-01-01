@@ -9,7 +9,7 @@ with open('README.md', 'r') as fi:
 
 setup(
     name='tdh-twitch-utils',
-    version='1.1.1',
+    version='1.1.2',
 
     author='Dmitry Karikh',
     author_email='the.dr.hax@gmail.com',
@@ -20,7 +20,7 @@ setup(
     url='https://github.com/TheDrHax/Twitch-Utils',
 
     install_requires=[
-        'tdh-tcd==2.4',
+        'tdh-tcd>=2.4',
         'streamlink>=1.0.0',
         'docopt>=0.6.2',
         'praat-parselmouth>=0.3.3'
