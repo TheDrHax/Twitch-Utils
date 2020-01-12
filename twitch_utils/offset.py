@@ -13,6 +13,7 @@ Options:
   --template-start <t>      Template chunk will be cut from FILE1 starting at this offset. [default: 0]
   --template-duration <t>   Duration of template chunk. [default: 120]
   -r <frequency>            WAV sampling frequency (lower is faster but less accurate). [default: 1000]
+  --reverse                 Start from the end of the video.
 
 Exit conditions:
   --score-multiplier <N>    Stop computation if local maximum score is at least
@@ -51,7 +52,7 @@ from .clip import Clip
 
 
 def find_offset(c1: Clip, c2: Clip,
-                start: float = 0, end: float = None,
+                start: float = 0, end: float = None, reverse: bool = False,
                 chunk_size: float = 300,
                 min_score: float = None,
                 max_score: float = None,
@@ -66,7 +67,7 @@ def find_offset(c1: Clip, c2: Clip,
 
     print(f'pos | offset | score | mul', file=sys.stderr)
 
-    for position, chunk in c2.slice_generator(start, chunk_size):
+    for position, chunk in c2.slice_generator(chunk_size, start, end, reverse):
         new_offset, new_score = c1.offset(chunk)
 
         delta = new_score - prev_score
@@ -135,7 +136,8 @@ def main(argv=None):
         'chunk_size': float(args['--split']),
         'min_score': get_arg('--min-score', None, float),
         'max_score': get_arg('--max-score', None, float),
-        'score_multiplier': float(args['--score-multiplier'])
+        'score_multiplier': float(args['--score-multiplier']),
+        'reverse': args['--reverse']
     }
 
     offset, score = find_offset(c1, c2, **kwargs)

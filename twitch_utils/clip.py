@@ -89,25 +89,47 @@ class Clip(object):
                      container=self.container)
                 for chunk in results]
 
-    def slice_generator(self, start: float, duration: float, **kwargs):
+    def slice_generator(self, duration: float,
+                        start: float = None, end: float = None,
+                        reverse: bool = False, **kwargs):
         pool = ThreadPool(1)
         kwargs['chunks'] = 1
 
-        position = start
+        if not start:
+            start = 0
+
+        if not end:
+            end = self.duration
+
+        if not reverse:
+            position = start
+        else:
+            position = end - duration
+
         async_result = None
 
-        while position < self.duration:
+        while (position < end) if not reverse else (position > start):
             result = None
 
             if async_result:
-                result = async_result.get()[0]
-                position += duration
+                result = position, async_result.get()[0]
+
+                if not reverse:
+                    position += duration
+                else:
+                    position -= duration
+
+                    if position < start:
+                        duration -= start - position
+                        position = start
 
             async_result = pool.apply_async(self.slice, kwds=kwargs,
                                             args=(position, duration))
 
-            if result:
-                yield position - duration, result
+            if not result:
+                continue
+
+            yield result
 
         pool.close()
 
