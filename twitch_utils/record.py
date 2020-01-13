@@ -96,8 +96,8 @@ def main(argv=None):
     print(f'Stream is online! Found the ID of live VOD: {v}')
 
     stream = Stream(f'https://twitch.tv/{c.name}',
-                    bandwidth=args.get('-b', None),
-                    quality=args.get('<quality>', 'best'),
+                    bandwidth=args.get('-b'),
+                    quality=args.get('<quality>') or 'best',
                     threads=args['-j'])
     vod = Stream(f'https://twitch.tv/videos/{v}',
                  bandwidth=stream.bandwidth,
