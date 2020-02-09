@@ -1,4 +1,4 @@
-"""Usage: twitch_utils concat <input>... (-o <name> | --output <name>)
+"""Usage: twitch_utils concat <input>... (-o <name> | --output <name>) [-f mpegts|flv|txt]
 
 This script concatenates two or more MPEG-TS files deleting
 overlapping segments in the process. Re-encoding is not required.
@@ -8,9 +8,17 @@ streams and their corresponding VODs share the same timeline.
 It means that you can record stream, download its beginning
 later and concatenate them by using this script.
 
+Supported output formats:
+  * mp4 (*.mp4), faststart is enabled by default
+  * mpegts (*.ts, -)
+  * flv (*.flv, -)
+  * txt (*.txt, -), map file for ffmpeg's concat demuxer
+
 Options:
-  -o <name>, --output=<name>  Name of the output file. Use '-' to output MPEG-TS
-                              directly to stdout.
+  -f <format>, --format=<format>  Force output pipe format. Has no effect if
+                                  output file name is specified. [default: mpegts]
+  -o <name>, --output=<name>      Name of the output file. Use '-' to output
+                                  directly to stdout.
 """
 
 import os
@@ -59,8 +67,18 @@ class Timeline(list):
             for c in self
         ])
 
-    def render(self, path: str = 'full.mp4') -> int:
+    def render(self, path: str = 'full.mp4', container: str = 'mp4') -> int:
         concat_map = self.ffconcat_map()
+
+        if path.endswith('.txt') or path == '-' and container == 'txt':
+            if path == '-':
+                print(concat_map)
+            else:
+                with open(path, 'w') as fo:
+                    fo.write(concat_map)
+                    fo.flush()
+            return 0
+
         print(concat_map, file=sys.stderr)
 
         map_file = NamedTemporaryFile('w', dir='.')
@@ -69,18 +87,20 @@ class Timeline(list):
 
         command = ['ffmpeg']
 
-        if path.endswith('.ts') or path == '-':
+        if path.endswith('.ts') or path == '-' and container == 'mpegts':
             command += ['-copyts']
         
         command += ['-f', 'concat', '-safe', '0', '-hide_banner',
                     '-i', map_file.name, '-c', 'copy']
 
-        if path.endswith('.ts') or path == '-':
+        if path.endswith('.ts') or path == '-' and container == 'mpegts':
             command += ['-muxdelay', '0']
             if path == '-':
                 command += ['-f', 'mpegts']
-        elif path.endswith('.flv'):
+        elif path.endswith('.flv') or path == '-' and container == 'flv':
             command += ['-bsf:a', 'aac_adtstoasc']
+            if path == '-':
+                command += ['-f', 'flv']
         elif path.endswith('.mp4'):
             command += ['-fflags', '+genpts', '-async', '1',
                         '-movflags', 'faststart']
@@ -98,7 +118,7 @@ def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
     timeline = Timeline([Clip(path) for path in args['<input>']])
-    sys.exit(timeline.render(args['--output']))
+    sys.exit(timeline.render(args['--output'], container=args['--format']))
 
 
 if __name__ == '__main__':
