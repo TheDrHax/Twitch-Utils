@@ -15,6 +15,7 @@ Supported output formats:
   * txt (*.txt, -), map file for ffmpeg's concat demuxer
 
 Options:
+  -y, --force                     Overwrite output file without confirmation.
   -f <format>, --format=<format>  Force output pipe format. Has no effect if
                                   output file name is specified. [default: mpegts]
   -o <name>, --output=<name>      Name of the output file. Use '-' to output
@@ -72,7 +73,7 @@ class Timeline(list):
         ])
 
     def render(self, path: str = 'full.mp4', container: str = 'mp4',
-               mp4_faststart: bool = True) -> int:
+               mp4_faststart: bool = True, force: bool = False) -> int:
         concat_map = self.ffconcat_map()
 
         if path.endswith('.txt') or path == '-' and container == 'txt':
@@ -91,6 +92,9 @@ class Timeline(list):
         map_file.flush()
 
         command = ['ffmpeg']
+
+        if force:
+            command += ['-y']
 
         if path.endswith('.ts') or path == '-' and container == 'mpegts':
             command += ['-copyts']
@@ -124,8 +128,10 @@ def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
     timeline = Timeline([Clip(path) for path in args['<input>']])
-    sys.exit(timeline.render(args['--output'], container=args['--format'],
-                             mp4_faststart=args['--faststart']))
+    sys.exit(timeline.render(args['--output'],
+                             container=args['--format'],
+                             mp4_faststart=args['--faststart'],
+                             force=args['--force']))
 
 
 if __name__ == '__main__':
