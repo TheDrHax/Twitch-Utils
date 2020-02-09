@@ -79,6 +79,8 @@ class Timeline(list):
             command += ['-muxdelay', '0']
             if path == '-':
                 command += ['-f', 'mpegts']
+        elif path.endswith('.flv'):
+            command += ['-bsf:a', 'aac_adtstoasc']
         elif path.endswith('.mp4'):
             command += ['-fflags', '+genpts', '-async', '1',
                         '-movflags', 'faststart']
