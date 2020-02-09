@@ -1,4 +1,4 @@
-"""Usage: twitch_utils concat <input>... (-o <name> | --output <name>) [-f mpegts|flv|txt]
+"""Usage: twitch_utils concat [options] <input>... (-o <name> | --output <name>)
 
 This script concatenates two or more MPEG-TS files deleting
 overlapping segments in the process. Re-encoding is not required.
@@ -9,7 +9,7 @@ It means that you can record stream, download its beginning
 later and concatenate them by using this script.
 
 Supported output formats:
-  * mp4 (*.mp4), faststart is enabled by default
+  * mp4 (*.mp4)
   * mpegts (*.ts, -)
   * flv (*.flv, -)
   * txt (*.txt, -), map file for ffmpeg's concat demuxer
@@ -19,6 +19,10 @@ Options:
                                   output file name is specified. [default: mpegts]
   -o <name>, --output=<name>      Name of the output file. Use '-' to output
                                   directly to stdout.
+
+MP4 options:
+  --faststart   Move moov atom to the front of the file. Requires second pass
+                that makes concatenation much slower.
 """
 
 import os
@@ -67,7 +71,8 @@ class Timeline(list):
             for c in self
         ])
 
-    def render(self, path: str = 'full.mp4', container: str = 'mp4') -> int:
+    def render(self, path: str = 'full.mp4', container: str = 'mp4',
+               mp4_faststart: bool = True) -> int:
         concat_map = self.ffconcat_map()
 
         if path.endswith('.txt') or path == '-' and container == 'txt':
@@ -102,8 +107,9 @@ class Timeline(list):
             if path == '-':
                 command += ['-f', 'flv']
         elif path.endswith('.mp4'):
-            command += ['-fflags', '+genpts', '-async', '1',
-                        '-movflags', 'faststart']
+            command += ['-fflags', '+genpts', '-async', '1']
+            if mp4_faststart:
+                command += ['-movflags', 'faststart']
 
         command += [path]
 
@@ -118,7 +124,8 @@ def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
     timeline = Timeline([Clip(path) for path in args['<input>']])
-    sys.exit(timeline.render(args['--output'], container=args['--format']))
+    sys.exit(timeline.render(args['--output'], container=args['--format'],
+                             mp4_faststart=args['--faststart']))
 
 
 if __name__ == '__main__':
