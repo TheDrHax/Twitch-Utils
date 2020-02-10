@@ -59,12 +59,14 @@ class Timeline(list):
             if len(self) < 2:
                 continue
 
-            # Cut previous segment to match next segment's start
-            #                  outpoint       end
-            # self[-2] ============|-----------|
-            #                      |================ self[-1]
-            #                 start=inpoint
-            self[-2].outpoint = self[-1].inpoint
+            # Cut both segments in the middle of the overlap to avoid
+            # losing or duplicating frames on the edges
+            #                       outpoint   end
+            # self[-2] ================|--------|
+            #                 |--------|============ self[-1]
+            #               start   inpoint
+            middle = self[-1].start + (self[-2].end - self[-1].start) / 2
+            self[-2].outpoint = self[-1].inpoint = middle
 
     def ffconcat_map(self) -> str:
         return '\n'.join([
