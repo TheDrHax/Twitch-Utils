@@ -70,7 +70,7 @@ class Timeline(list):
 
     def ffconcat_map(self) -> str:
         return '\n'.join([
-            f'file {c.path}\ninpoint {c.inpoint}\noutpoint {c.outpoint}\n'
+            f"file '{c.path}'\ninpoint {c.inpoint}\noutpoint {c.outpoint}\n"
             for c in self
         ])
 
