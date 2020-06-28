@@ -29,10 +29,10 @@ MP4 options:
 import os
 import sys
 import json
+import tempfile
 
 from docopt import docopt
 from subprocess import run, PIPE
-from tempfile import NamedTemporaryFile
 
 from .clip import Clip
 
@@ -89,9 +89,12 @@ class Timeline(list):
 
         print(concat_map, file=sys.stderr)
 
-        map_file = NamedTemporaryFile('w', dir='.')
+        map_file_name = os.path.join(tempfile.gettempdir(),
+                                     os.urandom(24).hex())
+        map_file = open(map_file_name, 'w')
         map_file.write(concat_map)
         map_file.flush()
+        map_file.close()
 
         command = ['ffmpeg']
 
@@ -121,7 +124,7 @@ class Timeline(list):
 
         p = run(command)
 
-        map_file.close()
+        os.unlink(map_file_name)
 
         return p.returncode
 
