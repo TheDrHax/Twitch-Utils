@@ -105,7 +105,7 @@ class Timeline(list):
             command += ['-copyts']
         
         command += ['-f', 'concat', '-safe', '0', '-hide_banner',
-                    '-i', map_file.name, '-c', 'copy']
+                    '-i', map_file_name, '-c', 'copy']
 
         if path.endswith('.ts') or path == '-' and container == 'mpegts':
             command += ['-muxdelay', '0']

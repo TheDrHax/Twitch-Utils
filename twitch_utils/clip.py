@@ -11,7 +11,8 @@ class Clip(object):
     @staticmethod
     def clip_info(path: str) -> dict:
         command = ('ffprobe -v error -of json -show_entries '
-                   'format=duration,start_time ' + path).split()
+                   'format=duration,start_time').split()
+        command += [path]
         proc = run(command, stdout=PIPE)
         return json.loads(proc.stdout)
 
@@ -57,8 +58,8 @@ class Clip(object):
         By default splits only the audio track, outputting chunks
         in WAV format.
         """
-        command = (f'ffmpeg -y -v error -ss {start} '
-                   f'-i {self.path} -vn').split()
+        command = (f'ffmpeg -y -v error -ss {start}').split()
+        command += [self.path, '-vn']
 
         if start > self.duration:
             return []
@@ -76,9 +77,10 @@ class Clip(object):
                                          os.urandom(24).hex())
             output = (f'-ar {self.ar} -f {self.container} '
                       f'-ss {duration * i} '
-                      f'-t {duration} {tmp_file_name}').split()
-            command.extend(output)
-            results.append(tmp_file_name)
+                      f'-t {duration}').split()
+            output += [tmp_file_name]
+            command += output
+            results += [tmp_file_name]
 
         if run(command).returncode != 0:
             [os.unlink(chunk) for chunk in results]
