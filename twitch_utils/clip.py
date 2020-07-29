@@ -59,7 +59,7 @@ class Clip(object):
         in WAV format.
         """
         command = (f'ffmpeg -y -v error -ss {start}').split()
-        command += [self.path, '-vn']
+        command += ['-i', self.path, '-vn']
 
         if start > self.duration:
             return []
