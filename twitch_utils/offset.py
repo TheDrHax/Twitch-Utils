@@ -57,8 +57,6 @@ def find_offset(c1: Clip, c2: Clip,
                 min_score: float = None,
                 max_score: float = None,
                 score_multiplier: float = 8) -> (float, float):
-    if end is not None:
-        c2.duration = end
 
     last_best_offset, last_best_score = 0, 0
     last_worst_score = 0
