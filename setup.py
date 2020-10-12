@@ -20,7 +20,8 @@ setup(
     url='https://github.com/TheDrHax/Twitch-Utils',
 
     install_requires=[
-        'tdh-tcd>=2.4',
+        'requests',
+        'python-dateutil',
         'streamlink>=1.0.0',
         'docopt>=0.6.2',
         'praat-parselmouth>=0.3.3'

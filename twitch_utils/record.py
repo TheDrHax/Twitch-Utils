@@ -1,4 +1,4 @@
-"""Usage: twitch_utils record [options] [--] <channel> [<quality>]
+"""Usage: twitch_utils record [options] --oauth=<token> [--] <channel> [<quality>]
 
 Parameters:
   channel       Name of the channel. Can be found in the URL: twitch.tv/<channel>
@@ -6,23 +6,25 @@ Parameters:
                 values use `streamlink https://twitch.tv/<channel>`.
 
 Options:
-  -j <threads>  Number of simultaneous downloads of live segments. This option
-                is passed to streamlink as --hls-segment-threads. [default: 4]
-  -b <speed>    Bandwidth limit for both live stream and VOD in bytes per second.
-                This option requires `pv` to work. Accepts suffixes K, M, G or T.
-  --debug       Forward output of streamlink and ffmpeg to stderr.
+  --oauth <token>   Twitch OAuth token. You need to extract it from the site's
+                    cookie named "auth-token".
+  -j <threads>      Number of simultaneous downloads of live segments. This option
+                    is passed to streamlink as --hls-segment-threads. [default: 4]
+  --debug           Forward output of streamlink and ffmpeg to stderr.
 """
 
 import os
 import sys
 
-from .clip import Clip
-from .concat import Timeline
 from time import sleep
 from docopt import docopt
+import dateutil.parser as dateparser
 from subprocess import Popen, PIPE
-from tcd.twitch import Channel
 from multiprocessing import Process
+
+from .clip import Clip
+from .concat import Timeline
+from .twitch import TwitchAPI
 
 
 DEBUG = False
@@ -30,17 +32,20 @@ DEBUG = False
 
 class Stream(object):  
     def __init__(self, url: str, quality: str = 'best',
-                 threads: int = 1, bandwidth: str = None):
+                 threads: int = 1, oauth: str = None):
         self.url = url
         self.quality = quality
         self.threads = threads
-        self.bandwidth = bandwidth
+        self.oauth = oauth
     
     def _args(self) -> list:
         params = {'hls-timeout': 60,
                   'hls-segment-timeout': 60,
                   'hls-segment-attempts': 5,
                   'hls-segment-threads': self.threads}
+
+        if self.oauth:
+            params['twitch-oauth-token'] = self.oauth
 
         return [f'--{key}={value}' for key, value in params.items()]
 
@@ -52,23 +57,13 @@ class Stream(object):
         sl_cmd += [self.url, self.quality, '-O']
 
         with open(dest, 'wb') as fo:
-            sl_kwargs = {'stdout': PIPE if self.bandwidth else fo,
+            sl_kwargs = {'stdout': fo,
                          'stderr': sys.stderr if DEBUG else PIPE}
             sl_proc = Popen(sl_cmd, **sl_kwargs)
-
-            if self.bandwidth:
-                pv_cmd = ['pv', '-q', '-L', self.bandwidth]
-                pv_kwargs = {'stdin': sl_proc.stdout,
-                             'stdout': fo}
-                pv_proc = Popen(pv_cmd, **pv_kwargs)
-
-                sl_proc.wait()
-                pv_proc.wait()
-            else:
-                sl_proc.wait()
+            sl_proc.wait()
 
             if sl_proc.returncode != 0:
-                print(f'WARN: `{cmd}` exited with non-zero '
+                print(f'WARN: `{sl_cmd}` exited with non-zero '
                       f'code ({sl_proc.returncode})')
                 sys.exit(sl_proc.returncode)
 
@@ -79,28 +74,43 @@ def main(argv=None):
     global DEBUG
     DEBUG = args['--debug']
 
-    c = Channel(args['<channel>'])
+    api = TwitchAPI(args['--oauth'])
 
-    print(f'Checking if channel `{c.name}` is active...')
+    channel = args['<channel>']
 
-    try:
-        v = c.live_vod()
-    except KeyError:
-        print(f'ERR: Channel `{c.name}` does not exist!')
+    print(f'Checking if channel `{channel}` is active...')
+
+    status = api.helix('streams', user_login=channel)['data']
+
+    if not status:
+        print(f'ERR: Channel is offline')
         sys.exit(1)
+    else:
+        status = status[0]
 
-    if not v:
-        print(f'ERR: Channel is offline or live VOD is not ready yet!')
-        sys.exit(1)
+    print(f'Attempting to find ID of the live VOD...')
+
+    vods = api.helix('videos', user_id=status['user_id'],
+                     first=1, type='archive')['data']
     
-    print(f'Stream is online! Found the ID of live VOD: {v}')
+    if len(vods) == 0:
+        print(f'ERR: No VODs found on channel')
+        sys.exit(1)
 
-    stream = Stream(f'https://twitch.tv/{c.name}',
-                    bandwidth=args.get('-b'),
+    stream_date = dateparser.isoparse(status['started_at'])
+    vod_date = dateparser.isoparse(vods[0]['created_at']) 
+
+    if vod_date < stream_date:
+        print(f'ERR: Live VOD is not available yet')
+        sys.exit(1)
+
+    v = vods[0]["id"]
+
+    stream = Stream(f'https://twitch.tv/{channel}',
                     quality=args.get('<quality>') or 'best',
                     threads=args['-j'])
+
     vod = Stream(f'https://twitch.tv/videos/{v}',
-                 bandwidth=stream.bandwidth,
                  quality=stream.quality,
                  threads=1)
 

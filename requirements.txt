@@ -1,4 +1,5 @@
-tdh-tcd==2.4
-streamlink==1.0.0
+requests
+python-dateutil
+git+https://github.com/TheDrHax/streamlink.git@1.6.0-oauth
 docopt==0.6.2
 praat-parselmouth==0.3.3

@@ -38,19 +38,23 @@ This script can be used to record live streams without waiting
 for them to end. It starts to record live stream immediately,
 then downloads VOD and concatenates them into full stream recording.
 
-Obviously, this script requires channel to have public VODs and streams.
+Obviously, this script requires channel to have public VODs.
 
 Algorithm:
 1. Check if channel is live and VOD for current stream already exists;
-2. Get VOD ID from Twitch API (uses part of Twitch-Chat-Downloader library);
+2. Get live VOD ID from Twitch API;
 3. Start downloading live stream into file `VOD.end.ts`;
 4. Wait 10 minutes and start downloading VOD into file `VOD.start.ts`;
 5. Wait for both downloads to finish;
 6. Concatenate two parts via `concat` script (see above).
 
-Bandwidth limiting is implemented by piping output of streamlink
-through `pv` utility, thus you will need to install this program
-to use `-b` flag.
+Note: Since Nov 2019 you have to provide your Twitch OAuth token in the command.
+Otherwise the script will not be able to detect the ID of the live VOD and
+download the beginning of the stream. At the moment, you will need to extract
+OAuth token from Twitch's cookie "auth-token". Other options such as providing
+your own Client-ID and token are not implemented yet.
+
+This script is just a proof of concept and probably should not be relied upon.
 
 ### Example
 
@@ -58,7 +62,7 @@ to use `-b` flag.
 # Record live stream of channel 'blackufa' using 2 threads and
 # limiting bandwidth to 2 MiB/s
 
-twitch_utils record blackufa -j 2 -b 2M 
+twitch_utils record --oauth=YOUR_TOKEN blackufa -j 2 -b 2M 
 ```
 
 ## offset
