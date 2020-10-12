@@ -54,6 +54,7 @@ from .clip import Clip
 def find_offset(c1: Clip, c2: Clip,
                 start: float = 0, end: float = None, reverse: bool = False,
                 chunk_size: float = 300,
+                ar: int = 500,
                 min_score: float = None,
                 max_score: float = None,
                 score_multiplier: float = 8) -> (float, float):
@@ -65,7 +66,9 @@ def find_offset(c1: Clip, c2: Clip,
 
     print(f'pos | offset | score | mul', file=sys.stderr)
 
-    for position, chunk in c2.slice_generator(chunk_size, start, end, reverse):
+    for position, chunk in c2.slice_generator(
+            chunk_size, start, end, reverse,
+            output_options=['-vn', '-ar', str(ar)]):
         new_offset, new_score = c1.offset(chunk)
 
         delta = new_score - prev_score
@@ -119,19 +122,21 @@ def main(argv=None):
     template_duration = float(args['--template-duration'])
     ar = int(args['-r'])
 
-    c1 = Clip(args['FILE1'], ar=ar)
+    c1 = Clip(args['FILE1'])
 
     if c1.duration < template_start or template_duration <= 0:
         raise Exception('Template is empty (check start offset and duration)')
 
-    c1 = c1.slice(template_start, template_duration + template_start)[0]
+    c1 = c1.slice(template_start, template_duration + template_start,
+                  output_options=['-vn', '-ar', str(ar)])[0]
 
-    c2 = Clip(args['FILE2'], ar=ar)
+    c2 = Clip(args['FILE2'])
 
     kwargs = {
         'start': float(args['--start']),
         'end': get_arg('--end', None, float),
         'chunk_size': float(args['--split']),
+        'ar': ar,
         'min_score': get_arg('--min-score', None, float),
         'max_score': get_arg('--max-score', None, float),
         'score_multiplier': float(args['--score-multiplier']),

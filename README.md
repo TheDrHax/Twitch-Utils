@@ -59,10 +59,8 @@ This script is just a proof of concept and probably should not be relied upon.
 ### Example
 
 ```
-# Record live stream of channel 'blackufa' using 2 threads and
-# limiting bandwidth to 2 MiB/s
-
-twitch_utils record --oauth=YOUR_TOKEN blackufa -j 2 -b 2M 
+# Record live stream of channel 'blackufa' using 2 threads
+twitch_utils record --oauth=YOUR_TOKEN blackufa -j 2
 ```
 
 ## offset
@@ -89,4 +87,19 @@ twitch_utils offset template.mp4 YOUR_FILE.mp4
 # Same command, but result will be rounded to nearest integer
 twitch_utils offset template.mp4 YOUR_FILE.mp4 --round
 # ... returns 123
+```
+
+## mute
+
+This script attempts to separate streamer's voice from background music by using [Spleeter](https://github.com/deezer/spleeter). Only specified time ranges are affected. Output contains the same video, but without music in these parts.
+
+The main purpose of this script is to remove automated Content-ID claims from the video on YouTube without muting the whole section.
+
+The result is similar to "Mute song only (beta)" in YouTube Studio, but this script is much faster and can handle multiple time ranges at once.
+
+### Example
+
+```
+# Remove music from 5:00 to 8:00 and from 1:00:00 to 1:05:00
+twitch_utils input.mp4 5:00-8:00 1:00:00-1:05:00 -o output.mp4
 ```

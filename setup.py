@@ -24,7 +24,9 @@ setup(
         'python-dateutil',
         'streamlink>=1.0.0',
         'docopt>=0.6.2',
-        'praat-parselmouth>=0.3.3'
+        'praat-parselmouth>=0.3.3',
+        'tensorflow==2.3.0',
+        'spleeter>=2.0',
     ],
 
     packages=find_packages(),

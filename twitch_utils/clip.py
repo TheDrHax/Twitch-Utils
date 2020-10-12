@@ -1,31 +1,35 @@
 import os
 import json
-import tempfile
 import parselmouth as pm
 
 from multiprocessing.pool import ThreadPool
 from subprocess import run, PIPE
+from typing import List
+
+from .utils import tmpfile
 
 
 class Clip(object):
-    @staticmethod
-    def clip_info(path: str) -> dict:
-        command = ('ffprobe -v error -of json -show_entries '
-                   'format=duration,start_time').split()
-        command += [path]
+    def ffprobe(self, entries, stream=None) -> dict:
+        command = ['ffprobe', '-v', 'error', '-of', 'json',
+                   '-show_entries', entries]
+
+        if stream:
+            command += ['-select_streams', stream]
+
+        command += [self.path]
+
         proc = run(command, stdout=PIPE)
         return json.loads(proc.stdout)
 
-    def __init__(self, path: str, ar: int = 500,
-                 container: str = 'wav', tmpfile = None):
+    def __init__(self, path: str, container: str = 'wav', tmpfile = None):
         self.name = os.path.basename(path)
         self.path = path
         self._tmpfile = tmpfile
 
-        self.ar = ar
         self.container = container
 
-        info = self.clip_info(path)['format']
+        info = self.ffprobe('format=duration,start_time')['format']
         if 'start_time' in info:  ## MPEG-TS only
             self.start = float(info['start_time'])
         else:
@@ -52,14 +56,15 @@ class Clip(object):
         if self._tmpfile:
             os.unlink(self._tmpfile)
 
-    def slice(self, start: float, duration: float, chunks: int = 1):
+    def slice(self, start: float, duration: float, chunks: int = 1,
+              output_options: List[str] = []):
         """Split this Clip into one or multiple temporary Clips.
 
         By default splits only the audio track, outputting chunks
         in WAV format.
         """
         command = (f'ffmpeg -y -v error -ss {start}').split()
-        command += ['-i', self.path, '-vn']
+        command += ['-i', self.path]
 
         if start > self.duration:
             return []
@@ -73,11 +78,11 @@ class Clip(object):
             if duration <= 0:  # nothing left
                 break
 
-            tmp_file_name = os.path.join(tempfile.gettempdir(),
-                                         os.urandom(24).hex())
-            output = (f'-ar {self.ar} -f {self.container} '
+            tmp_file_name = tmpfile()
+            output = (f'-f {self.container} '
                       f'-ss {duration * i} '
                       f'-t {duration}').split()
+            output += output_options
             output += [tmp_file_name]
             command += output
             results += [tmp_file_name]
@@ -88,7 +93,6 @@ class Clip(object):
 
         return [Clip(chunk,
                      tmpfile=chunk,
-                     ar=self.ar,
                      container=self.container)
                 for chunk in results]
 

@@ -3,6 +3,7 @@
 Commands:
   concat  Concatenate multiple MPEG-TS files
   offset  Calculate offset between two audio (or video) files
+  mute    Remove background music from video
   record  Record live Twitch stream from the beginning
 """
 
@@ -20,6 +21,9 @@ def main(argv=None):
     elif args['<command>'] == 'offset':
         from .offset import main as offset_main
         offset_main(argv)
+    elif args['<command>'] == 'mute':
+        from .mute import main as mute_main
+        mute_main(argv)
     elif args['<command>'] == 'record':
         from .record import main as record_main
         record_main(argv)
