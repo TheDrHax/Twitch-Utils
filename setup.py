@@ -25,7 +25,7 @@ setup(
         'streamlink>=1.0.0',
         'docopt>=0.6.2',
         'praat-parselmouth>=0.3.3',
-        'tensorflow==2.3.0',
+        'tensorflow==2.3.1',
         'spleeter>=2.0',
     ],
 
