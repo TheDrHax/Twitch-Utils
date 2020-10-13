@@ -1,6 +1,5 @@
 import os
 import json
-import parselmouth as pm
 
 from multiprocessing.pool import ThreadPool
 from subprocess import run, PIPE
@@ -139,16 +138,3 @@ class Clip(object):
             yield result
 
         pool.close()
-
-    def offset(self, clip: 'Clip') -> (float, float):
-        """Find position of this Clip in another Clip (may be negative).
-        
-        Returns two values: offset in seconds and cross-correlation score.
-        """
-        s1 = pm.Sound(self.path).convert_to_mono()
-        s2 = pm.Sound(clip.path).convert_to_mono()
-        cc = s1.cross_correlate(s2, pm.AmplitudeScaling.SUM)
-        score = cc.values.max()
-        frame = cc.values.argmax()
-        offset = cc.frame_number_to_time(frame)
-        return offset, score

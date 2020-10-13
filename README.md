@@ -1,10 +1,24 @@
 # Python utils for Twitch [![PyPI version](https://badge.fury.io/py/tdh-twitch-utils.svg)](https://badge.fury.io/py/tdh-twitch-utils)
 
 ```
-pip3 install tdh-twitch-utils
+pip3 install tdh-twitch-utils[all]
 ```
 
-This module consists of four different scripts:
+This module supports partial installation:
+
+| Package | Scripts | Dependencies |
+| ------- | ------- | ------------ |
+| tdh-twitch-utils | [concat](#concat) | FFmpeg |
+| tdh-twitch-utils[record] | [concat](#concat), [record](#record) | FFmpeg, streamlink |
+| tdh-twitch-utils[offset] | [concat](#concat), [offset](#offset) | FFmpeg, praat-parselmouth |
+| tdh-twitch-utils[mute] | [concat](#concat), [mute](#mute) | FFmpeg, tensorflow, spleeter |
+| tdh-twitch-utils[all] | all of the above | all of the above |
+
+You can also provide a list of extras in a single command:
+
+```
+pip3 install tdh-twitch-utils[record,offset]
+```
 
 ## concat
 

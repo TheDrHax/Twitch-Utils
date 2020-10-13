@@ -16,6 +16,14 @@ Options:
 import os
 import sys
 
+try:
+    import streamlink
+except ImportError:
+    print('Error: You need to install tdh-twitch-utils[record] or '
+          'tdh-twitch-utils[all] to use this feature.',
+          file=sys.stderr)
+    sys.exit(1)
+
 from time import sleep
 from docopt import docopt
 import dateutil.parser as dateparser

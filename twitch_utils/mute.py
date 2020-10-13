@@ -15,11 +15,19 @@ Options:
 """
 
 import os
+import sys
 
 from docopt import docopt
 from subprocess import run
-from spleeter.separator import Separator
-from spleeter.audio.adapter import get_default_audio_adapter
+
+try:
+    from spleeter.separator import Separator
+    from spleeter.audio.adapter import get_default_audio_adapter
+except ImportError:
+    print('Error: You need to install tdh-twitch-utils[mute] or '
+          'tdh-twitch-utils[all] to use this feature.',
+          file=sys.stderr)
+    sys.exit(1)
 
 from .clip import Clip
 from .utils import tmpfile

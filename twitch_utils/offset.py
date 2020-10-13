@@ -43,12 +43,34 @@ Usage examples:
   offset.py $(youtube-dl -gf best VIDEO_ID) long_video.mp4
 """
 
-import os
 import sys
 
+try:
+    import parselmouth as pm
+except ImportError:
+    print('Error: You need to install tdh-twitch-utils[offset] or '
+          'tdh-twitch-utils[all] to use this feature.',
+          file=sys.stderr)
+    sys.exit(1)
+
+from typing import Tuple
 from docopt import docopt
 
 from .clip import Clip
+
+
+def offset(template: Clip, video: Clip) -> Tuple[float, float]:
+    """Find position of this Clip in another Clip (may be negative).
+
+    Returns two values: offset in seconds and cross-correlation score.
+    """
+    s1 = pm.Sound(template.path).convert_to_mono()
+    s2 = pm.Sound(video.path).convert_to_mono()
+    cc = s1.cross_correlate(s2, pm.AmplitudeScaling.SUM)
+    score = cc.values.max()
+    frame = cc.values.argmax()
+    offset = cc.frame_number_to_time(frame)
+    return offset, score
 
 
 def find_offset(c1: Clip, c2: Clip,
@@ -57,7 +79,7 @@ def find_offset(c1: Clip, c2: Clip,
                 ar: int = 500,
                 min_score: float = None,
                 max_score: float = None,
-                score_multiplier: float = 8) -> (float, float):
+                score_multiplier: float = 8) -> Tuple[float, float]:
 
     last_best_offset, last_best_score = 0, 0
     last_worst_score = 0
@@ -69,7 +91,7 @@ def find_offset(c1: Clip, c2: Clip,
     for position, chunk in c2.slice_generator(
             chunk_size, start, end, reverse,
             output_options=['-vn', '-ar', str(ar)]):
-        new_offset, new_score = c1.offset(chunk)
+        new_offset, new_score = offset(c1, chunk)
 
         delta = new_score - prev_score
         prev_score = new_score

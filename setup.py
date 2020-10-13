@@ -1,10 +1,28 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
+import itertools
 from setuptools import setup, find_packages
 
 
 with open('README.md', 'r') as fi:
     long_description = fi.read()
+
+
+EXTRAS = {
+    'record': [
+        'streamlink>=1.0.0'
+    ],
+    'offset': [
+        'praat-parselmouth>=0.3.3'
+    ],
+    'mute': [
+        'numpy<1.19.0,>=1.16.0',
+        'tensorflow==2.3.0',
+        'spleeter>=2.0'
+    ]
+}
+
+EXTRAS['all'] = list(itertools.chain.from_iterable(EXTRAS.values()))
 
 
 setup(
@@ -22,13 +40,10 @@ setup(
     install_requires=[
         'requests',
         'python-dateutil',
-        'streamlink>=1.0.0',
         'docopt>=0.6.2',
-        'praat-parselmouth>=0.3.3',
-        'numpy<1.19.0,>=1.16.0',
-        'tensorflow==2.3.0',
-        'spleeter>=2.0',
     ],
+
+    extras_require=EXTRAS,
 
     packages=find_packages(),
 
