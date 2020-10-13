@@ -87,10 +87,10 @@ def main(argv=None):
         command += ['-i', segment.path]
 
     # Copy codecs from the original video
-    ainfo = fi.ffprobe('stream=codec_name,max_bit_rate', 'a')['streams'][0]
+    ainfo = fi.ffprobe('stream=codec_name,bit_rate', 'a')['streams'][0]
     command += ['-c:v', 'copy',
                 '-c:a', ainfo['codec_name'],
-                '-b:a', ainfo['max_bit_rate'],
+                '-b:a', ainfo['bit_rate'],
                 '-strict', '-2']
 
     command += ['-filter_complex', filters,
