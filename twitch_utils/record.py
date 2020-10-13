@@ -1,4 +1,4 @@
-"""Usage: twitch_utils record [options] --oauth=<token> [--] <channel> [<quality>]
+"""Usage: twitch_utils record [options] --oauth=<token> [--] <channel> [<quality>] [-o <file>]
 
 Parameters:
   channel       Name of the channel. Can be found in the URL: twitch.tv/<channel>
@@ -8,8 +8,10 @@ Parameters:
 Options:
   --oauth <token>   Twitch OAuth token. You need to extract it from the site's
                     cookie named "auth-token".
-  -j <threads>      Number of simultaneous downloads of live segments. This option
-                    is passed to streamlink as --hls-segment-threads. [default: 4]
+  -o <name>         Name of the output file. For more information see
+                    `twitch_utils concat --help`.
+  -j <threads>      Number of simultaneous downloads of live segments. [default: 4]
+  -y, --force       Overwrite output file without confirmation.
   --debug           Forward output of streamlink and ffmpeg to stderr.
 """
 
@@ -31,7 +33,7 @@ from subprocess import Popen, PIPE
 from multiprocessing import Process
 
 from .clip import Clip
-from .concat import Timeline
+from .concat import Timeline, TimelineError
 from .twitch import TwitchAPI
 
 
@@ -82,6 +84,12 @@ def main(argv=None):
     global DEBUG
     DEBUG = args['--debug']
 
+    output = args['-o']
+
+    if output == '-':
+        print('ERR: This script does not support stdout as output.')
+        sys.exit(1)
+
     api = TwitchAPI(args['--oauth'])
 
     channel = args['<channel>']
@@ -122,34 +130,51 @@ def main(argv=None):
                  quality=stream.quality,
                  threads=1)
 
-    p_stream = Process(target=stream.download, args=(f'{v}.end.ts',))
-    p_vod = Process(target=vod.download, args=(f'{v}.start.ts',))
-
     print('Starting to record the live stream...')
+    p_stream = Process(target=stream.download, args=(f'{v}.end.ts',))
     p_stream.start()
 
-    sleep(600)
+    sleep(60)
     print('Starting to download live VOD (beginning of the stream)...')
-    p_vod.start()
+    for i in range(3):
+        p_vod = Process(target=vod.download, args=(f'{v}.start.ts',))
+        p_vod.start()
+        p_vod.join()
 
-    p_vod.join()
+        print('Testing the possibility of concatenation')
+        try:
+            Timeline([Clip(f'{v}.{part}.ts') for part in ['start', 'end']])
+        except TimelineError as ex:
+            if i == 2:
+                print(ex)
+                print('ERR: Unable to download live VOD')
+                sys.exit(1)
+
+            print('Concatenation is not possible, redownloading live VOD...')
+            sleep(60)
+            p_vod.close()
+
+        print('Concatenation is possible, waiting for stream to end')
+        p_vod.close()
+        break
+
     p_stream.join()
-
-    p_vod.close()
     p_stream.close()
 
-    print('Download finished')
-    print('Trying to assemble downloaded segments into full stream...')
+    print('Stream ended')
 
     try:
         t = Timeline([Clip(f'{v}.{part}.ts') for part in ['start', 'end']])
-    except Exception as ex:
+    except TimelineError as ex:
         print(ex)
         print('ERR: Unable to concatenate segments!')
         sys.exit(1)
 
-    print('Segments can be concatenated! Starting rendering...')
-    t.render(sys.argv[2] if len(sys.argv) == 3 else f'{v}.mp4')
+    if not output:
+        output = f'{v}.ts'
+
+    print(f'Writing stream recording to {output}')
+    t.render(output, force=args['--force'])
 
     print('Cleaning up...')
     [os.unlink(f'{v}.{part}.ts') for part in ['start', 'end']]

@@ -28,13 +28,16 @@ MP4 options:
 
 import os
 import sys
-import json
-import tempfile
 
 from docopt import docopt
 from subprocess import run, PIPE
 
 from .clip import Clip
+from .utils import tmpfile
+
+
+class TimelineError(Exception):
+    pass
 
 
 class Timeline(list):
@@ -43,7 +46,7 @@ class Timeline(list):
         for clip in clips:
             if clip.start <= pos and clip.end > pos:
                 return clip
-        raise Exception(f'Position {pos} is not present in any of clips')
+        raise TimelineError(f'Position {pos} is not present in any of clips')
 
     def __init__(self, clips: list):
         clips.sort(key=lambda k: k.start)
@@ -75,7 +78,7 @@ class Timeline(list):
         ])
 
     def render(self, path: str = 'full.mp4', container: str = 'mp4',
-               mp4_faststart: bool = True, force: bool = False) -> int:
+               mp4_faststart: bool = False, force: bool = False) -> int:
         concat_map = self.ffconcat_map()
 
         if path.endswith('.txt') or path == '-' and container == 'txt':
@@ -89,8 +92,7 @@ class Timeline(list):
 
         print(concat_map, file=sys.stderr)
 
-        map_file_name = os.path.join(tempfile.gettempdir(),
-                                     os.urandom(24).hex())
+        map_file_name = tmpfile('txt', '.')
         map_file = open(map_file_name, 'w')
         map_file.write(concat_map)
         map_file.flush()
