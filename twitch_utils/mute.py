@@ -71,13 +71,14 @@ def main(argv=None):
         delay = int(start * 1000)
         filters += f';[{i+1}]'
         filters += f'asetnsamples=8192'
-        filters += f',adelay={delay}|{delay}[delay{i+1}]'
+        filters += f',adelay={delay}|{delay},apad[delay{i+1}]'
 
     # Mix muted original track and all processed segments
     filters += ';[main]'
     for i, (start, end) in enumerate(ranges):
         filters += f'[delay{i+1}]'
     filters += f'amix=inputs={len(ranges) + 1}:duration=first'
+    filters += f',volume={len(ranges) + 1}'
 
     filters += '[audio]'
 
