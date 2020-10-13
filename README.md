@@ -97,6 +97,8 @@ The main purpose of this script is to remove automated Content-ID claims from th
 
 The result is similar to "Mute song only (beta)" in YouTube Studio, but this script is much faster and can handle multiple time ranges at once.
 
+Note: Prebuilt binaries of Tensorflow require CPUs with AVX support.
+
 ### Example
 
 ```
