@@ -4,7 +4,7 @@
 pip3 install tdh-twitch-utils
 ```
 
-This module consists of three different scripts:
+This module consists of four different scripts:
 
 ## concat
 
@@ -101,5 +101,5 @@ The result is similar to "Mute song only (beta)" in YouTube Studio, but this scr
 
 ```
 # Remove music from 5:00 to 8:00 and from 1:00:00 to 1:05:00
-twitch_utils input.mp4 5:00-8:00 1:00:00-1:05:00 -o output.mp4
+twitch_utils mute input.mp4 5:00~8:00 1:00:00~1:05:00 -o output.mp4
 ```

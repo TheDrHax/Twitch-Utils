@@ -8,7 +8,7 @@ The main purpose of this script is to remove automated Content-ID claims from
 the video on YouTube. YouTube displays exact time ranges for every claim.
 
 Timestamp format: [[HH:]MM:]SS[.MMM]
-Time range format: START-END
+Time range format: START~END
 
 Options:
   -o <file>, --output=<file>    Name of the output file.
@@ -35,7 +35,7 @@ def main(argv=None):
     
     fi = Clip(args['<input>'])
     fo = args['--output']
-    ranges = list(tuple(ptime(t) for t in range.split('-'))
+    ranges = list(tuple(ptime(t) for t in range.split('~'))
                   for range in args['<range>'])
 
     loader = get_default_audio_adapter()
