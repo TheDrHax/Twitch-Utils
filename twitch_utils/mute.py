@@ -11,8 +11,9 @@ Timestamp format: [[HH:]MM:]SS[.MMM]
 Time range format: START~END
 
 Options:
-  -o <file>  Name of the output file.
-  --inverse  Remove voice instead of music.
+  -o <file>   Name of the output file.
+  --inverse   Remove voice instead of music.
+  --pass <n>  Number of passes for each time range. [default: 1]
 """
 
 import os
@@ -59,13 +60,18 @@ def main(argv=None):
         options = ['-vn', '-r', str(sample_rate), '-f', 'wav']
         clip = fi.slice(start, end - start, output_options=options)[0]
         
-        waveform, _ = loader.load(clip.path, sample_rate=sample_rate)
-        prediction = separator.separate(waveform)
+        for i in range(int(args['--pass'])):
+            waveform, _ = loader.load(clip.path, sample_rate=sample_rate)
+            prediction = separator.separate(waveform)
 
-        output = tmpfile('wav')
-        result = prediction['accompaniment' if args['--inverse'] else 'vocals']
-        loader.save(output, result, sample_rate)
-        segments[start] = Clip(output, tmpfile=output)
+            output = tmpfile('wav')
+
+            target = 'accompaniment' if args['--inverse'] else 'vocals'
+            loader.save(output, prediction[target], sample_rate)
+
+            clip = Clip(output, tmpfile=output)
+
+        segments[start] = clip
 
     print('Writing output file...')
 
