@@ -1,4 +1,4 @@
-"""Usage: twitch_utils mute <input> <range>... (-o <name> | --output <name>)
+"""Usage: twitch_utils mute [options] <input> <range>... (-o <name>)
 
 This script attempts to separate streamer's voice from background music by
 using Spleeter. Only specified time ranges are affected. Output contains the
@@ -11,7 +11,8 @@ Timestamp format: [[HH:]MM:]SS[.MMM]
 Time range format: START~END
 
 Options:
-  -o <file>, --output=<file>    Name of the output file.
+  -o <file>  Name of the output file.
+  --inverse  Remove voice instead of music.
 """
 
 import os
@@ -42,7 +43,7 @@ def main(argv=None):
     args = docopt(__doc__, argv=argv)
     
     fi = Clip(args['<input>'])
-    fo = args['--output']
+    fo = args['-o']
     ranges = list(tuple(ptime(t) for t in range.split('~'))
                   for range in args['<range>'])
 
@@ -62,7 +63,8 @@ def main(argv=None):
         prediction = separator.separate(waveform)
 
         output = tmpfile('wav')
-        loader.save(output, prediction['vocals'], sample_rate)
+        result = prediction['accompaniment' if args['--inverse'] else 'vocals']
+        loader.save(output, result, sample_rate)
         segments[start] = Clip(output, tmpfile=output)
 
     print('Writing output file...')
