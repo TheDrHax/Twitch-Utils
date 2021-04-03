@@ -319,10 +319,12 @@ def main(argv=None):
         v = args['<vod>']
 
     stream = Stream(f'https://twitch.tv/{channel}',
-                    quality=args.get('<quality>') or 'best',
+                    oauth=args['--oauth'],
+                    quality=args['--quality'],
                     threads=args['-j'])
 
     vod = Stream(f'https://twitch.tv/videos/{v}',
+                 oauth=args['--oauth'],
                  quality=stream.quality,
                  threads=1)
 
