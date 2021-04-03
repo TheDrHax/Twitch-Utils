@@ -19,7 +19,7 @@ EXTRAS = {
     'mute': [
         'numpy<1.19.0,>=1.16.0',
         'tensorflow==2.3.0',
-        'spleeter>=2.0'
+        'spleeter==2.2.1'
     ]
 }
 

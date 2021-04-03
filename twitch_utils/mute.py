@@ -1,4 +1,4 @@
-"""Usage: twitch_utils mute [options] <input> <range>... (-o <name>)
+"""Usage: twitch_utils mute [options] <input> <range>... -o <output>
 
 This script attempts to separate streamer's voice from background music by
 using Spleeter. Only specified time ranges are affected. Output contains the
@@ -24,7 +24,7 @@ from subprocess import run
 
 try:
     from spleeter.separator import Separator
-    from spleeter.audio.adapter import get_default_audio_adapter
+    from spleeter.audio.adapter import AudioAdapter
 except ImportError:
     print('Error: You need to install tdh-twitch-utils[mute] or '
           'tdh-twitch-utils[all] to use this feature.',
@@ -42,13 +42,13 @@ def ptime(t: str) -> float:
 
 def main(argv=None):
     args = docopt(__doc__, argv=argv)
-    
+
     fi = Clip(args['<input>'])
     fo = args['-o']
     ranges = list(tuple(ptime(t) for t in range.split('~'))
                   for range in args['<range>'])
 
-    loader = get_default_audio_adapter()
+    loader = AudioAdapter.default()
     sample_rate = 44100
     separator = Separator('spleeter:2stems')
 
@@ -59,7 +59,7 @@ def main(argv=None):
 
         options = ['-vn', '-r', str(sample_rate), '-f', 'wav']
         clip = fi.slice(start, end - start, output_options=options)[0]
-        
+
         for i in range(int(args['--pass'])):
             waveform, _ = loader.load(clip.path, sample_rate=sample_rate)
             prediction = separator.separate(waveform)
@@ -86,7 +86,7 @@ def main(argv=None):
     for i, (start, end) in enumerate(ranges):
         delay = int(start * 1000)
         filters += f';[{i+1}]'
-        filters += f'asetnsamples=8192'
+        filters += 'asetnsamples=8192'
         filters += f',adelay={delay}|{delay},apad[delay{i+1}]'
 
     # Mix muted original track and all processed segments
@@ -117,6 +117,7 @@ def main(argv=None):
         if os.path.exists(fo):
             os.unlink(fo)
         raise Exception('ffmpeg exited with non-zero code')
+
 
 if __name__ == '__main__':
     main()
