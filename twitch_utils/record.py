@@ -33,7 +33,7 @@ from subprocess import Popen, PIPE
 from multiprocessing import Process
 
 from .clip import Clip
-from .concat import Timeline, TimelineError
+from .concat import Timeline, TimelineMissingRangeError
 from .twitch import TwitchAPI
 
 
@@ -144,7 +144,7 @@ def main(argv=None):
         print('Testing the possibility of concatenation')
         try:
             Timeline([Clip(f'{v}.{part}.ts') for part in ['start', 'end']])
-        except TimelineError as ex:
+        except TimelineMissingRangeError as ex:
             if i == 2:
                 print(ex)
                 print('ERR: Unable to download live VOD')
@@ -165,7 +165,7 @@ def main(argv=None):
 
     try:
         t = Timeline([Clip(f'{v}.{part}.ts') for part in ['start', 'end']])
-    except TimelineError as ex:
+    except TimelineMissingRangeError as ex:
         print(ex)
         print('ERR: Unable to concatenate segments!')
         sys.exit(1)

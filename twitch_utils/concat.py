@@ -36,17 +36,28 @@ from .clip import Clip
 from .utils import tmpfile
 
 
-class TimelineError(Exception):
-    pass
+class TimelineMissingRangeError(Exception):
+    def __init__(self, start, end):
+        super().__init__(f'Range {start}~{end} is missing')
+
+        self.start = start
+        self.end = end
 
 
 class Timeline(list):
     @staticmethod
     def find_clip(clips: list, pos: float) -> Clip:
+        abs_start = clips[0].start
+        end = None
+
         for clip in clips:
             if clip.start <= pos and clip.end > pos:
                 return clip
-        raise TimelineError(f'Position {pos} is not present in any of clips')
+
+            if clip.start > pos:
+                end = clip.start
+
+        raise TimelineMissingRangeError(pos - abs_start, end - abs_start)
 
     def __init__(self, clips: list):
         clips.sort(key=lambda k: k.start)
@@ -134,7 +145,13 @@ class Timeline(list):
 def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
-    timeline = Timeline([Clip(path) for path in args['<input>']])
+    try:
+        timeline = Timeline([Clip(path) for path in args['<input>']])
+    except TimelineMissingRangeError as ex:
+        print(f'ERROR: Range {int(ex.start)}~{int(ex.end)} is not present in '
+              'provided files')
+        sys.exit(1)
+
     sys.exit(timeline.render(args['--output'],
                              container=args['--format'],
                              mp4_faststart=args['--faststart'],
