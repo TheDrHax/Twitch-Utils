@@ -17,6 +17,8 @@ Options:
 
 import os
 import sys
+import math
+import itertools
 
 try:
     import streamlink
@@ -42,8 +44,8 @@ DEBUG = False
 
 
 class Stream(object):
-    PARSE_QUEUED = compile('{tag} Adding segment {segment:d} to queue{}')
-    PARSE_COMPLETE = compile('{tag} Download of segment {segment:d} complete{}')
+    PARSE_QUEUED = compile('{} Adding segment {segment:d} to queue{}')
+    PARSE_COMPLETE = compile('{} Download of segment {segment:d} complete{}')
 
     def __init__(self, url: str,
                  quality: str = 'best',
@@ -58,6 +60,10 @@ class Stream(object):
         self.start = start
         self.end = end
 
+    def copy(self):
+        return Stream(self.url, self.quality, self.threads,
+                      self.oauth, self.start, self.end)
+
     def _args(self) -> list:
         params = {'hls-timeout': 60,
                   'hls-segment-timeout': 60,
@@ -68,20 +74,22 @@ class Stream(object):
             params['twitch-oauth-token'] = self.oauth
 
         if self.start > 0:
-            params['hls-start-offset'] = self.start
+            params['hls-start-offset'] = math.floor(self.start)
 
         if self.end:
-            params['hls-duration'] = self.end - self.start
+            params['hls-duration'] = math.ceil(self.end - self.start)
 
-        args = ['-l', 'debug']
+        args = ['-l', 'debug', '--twitch-disable-ads']
         args += [f'--{key}={value}' for key, value in params.items()]
         args += [self.url, self.quality, '-O']
 
         return args
 
     def download(self, dest: str) -> bool:
+        """Exit codes: 0 - success, 1 - should retry, 2 - should stop"""
+
         print(f'Downloading `{self.url}` into {dest}')
-        success = True
+        exit_code = 0
 
         fo = open(dest, 'wb')
         sl_cmd = ['streamlink'] + self._args()
@@ -118,18 +126,131 @@ class Stream(object):
                 else:
                     print(f'ERR: Skipped segment {downloaded + 1}')
                     sl_proc.terminate()
-                    success = False
+                    exit_code = 1
                     break
             elif 'Thread-TwitchHLSStreamWriter' in line:
                 print(f'ERR: {line}')
                 sl_proc.terminate()
-                success = False
+                exit_code = 1
                 break
+            elif 'No playable streams found' in line:
+                print('WARN: Stream appears to be offline')
+                sl_proc.terminate()
+                os.unlink(fo.name)
+                exit_code = 2
+                break
+            elif 'Waiting for pre-roll ads' in line:
+                print('Waiting for ads to finish...')
+
+        sl_proc.wait()
 
         fo.flush()
         fo.close()
 
-        return success
+        return exit_code
+
+    def _target_download(self, *args):
+        result = self.download(*args)
+        sys.exit(result)
+
+    def download_async(self, dest: str) -> Process:
+        p = Process(target=self._target_download, args=(dest,))
+        p.start()
+        return p
+
+
+def generate_filename(vod_id, part):
+    return f'{vod_id}.{part}.ts'
+
+
+def create_timeline(vod_id, parts):
+    clips = []
+
+    for part in range(parts):
+        filename = generate_filename(vod_id, part)
+
+        try:
+            clips.append(Clip(filename))
+        except Exception:
+            print(f'WARN: Clip {filename} is corrupted, ignoring...')
+
+    return Timeline(clips)
+
+
+def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
+    resumed = parts > 0
+    stream_result = -1
+    missing_part = None
+
+    while stream_result != 0:
+        if parts == 0:
+            print('Starting download of live stream')
+        else:
+            print('Resuming download of live stream')
+
+        stream_proc = stream.download_async(generate_filename(vod_id, parts))
+        parts += 1
+
+        sleep(60)
+        if not stream_proc.is_alive and stream_proc.exitcode == 2:
+            break
+
+        if parts == 1:
+            print('Starting download of VOD')
+
+            vod_proc = vod.download_async(generate_filename(vod_id, parts))
+            parts += 1
+
+            vod_proc.join()
+            vod_result = vod_proc.exitcode
+            vod_proc.close()
+
+            print(f'Finished download of VOD (exit code: {vod_result})')
+
+        first_vod = parts == 2
+
+        while missing_part or first_vod or resumed:
+            # Avoid infinite loops
+            resumed = False
+            first_vod = False
+
+            print('Testing the possibility of concatenation')
+
+            try:
+                create_timeline(vod_id, parts)
+                print('Timeline is complete, good!')
+                missing_part = None
+                break
+            except TimelineMissingRangeError as ex:
+                missing_part = (ex.start, ex.end)
+                print(f'WARN: Missing segment {ex.start}~{ex.end}, '
+                      'retrying in 60 seconds...')
+                sleep(60)
+
+            print(f'Downloading segment {missing_part[0]}~{missing_part[1]}')
+
+            segment = vod.copy()
+            segment.start = max(0, missing_part[0] - 60)
+            segment.end = missing_part[1] + 60
+
+            segment = segment.download_async(generate_filename(vod_id, parts))
+            parts += 1
+
+            vod_proc.join()
+            vod_proc.close()
+
+        stream_proc.join()
+        stream_result = stream_proc.exitcode
+        stream_proc.close()
+
+        print(f'Finished download of live stream (exit code: {stream_result})')
+
+        if stream_result != 0:
+            print('Resuming in 60 seconds...')
+            sleep(60)
+
+    print('All parts are downloaded!')
+    return parts
 
 
 def main(argv=None):
@@ -145,7 +266,6 @@ def main(argv=None):
         sys.exit(1)
 
     api = TwitchAPI(args['--oauth'])
-
     channel = args['<channel>']
 
     print(f'Checking if channel `{channel}` is active...')
@@ -153,25 +273,25 @@ def main(argv=None):
     status = api.helix('streams', user_login=channel)['data']
 
     if not status:
-        print(f'ERR: Channel is offline')
+        print('ERR: Channel is offline')
         sys.exit(1)
     else:
         status = status[0]
 
-    print(f'Attempting to find ID of the live VOD...')
+    print('Attempting to find ID of the live VOD...')
 
     vods = api.helix('videos', user_id=status['user_id'],
                      first=1, type='archive')['data']
-    
+
     if len(vods) == 0:
-        print(f'ERR: No VODs found on channel')
+        print('ERR: No VODs found on channel')
         sys.exit(1)
 
     stream_date = dateparser.isoparse(status['started_at'])
-    vod_date = dateparser.isoparse(vods[0]['created_at']) 
+    vod_date = dateparser.isoparse(vods[0]['created_at'])
 
     if vod_date < stream_date:
-        print(f'ERR: Live VOD is not available yet')
+        print('ERR: Live VOD is not available yet')
         sys.exit(1)
 
     v = vods[0]["id"]
@@ -184,41 +304,21 @@ def main(argv=None):
                  quality=stream.quality,
                  threads=1)
 
-    print('Starting to record the live stream...')
-    p_stream = Process(target=stream.download, args=(f'{v}.end.ts',))
-    p_stream.start()
+    parts = 0
 
-    sleep(60)
-    print('Starting to download live VOD (beginning of the stream)...')
-    for i in range(3):
-        p_vod = Process(target=vod.download, args=(f'{v}.start.ts',))
-        p_vod.start()
-        p_vod.join()
+    for i in itertools.count():
+        if os.path.exists(generate_filename(v, i)):
+            if i == 0:
+                print('Found previous segments, resuming download')
 
-        print('Testing the possibility of concatenation')
-        try:
-            Timeline([Clip(f'{v}.{part}.ts') for part in ['start', 'end']])
-        except TimelineMissingRangeError as ex:
-            if i == 2:
-                print(ex)
-                print('ERR: Unable to download live VOD')
-                sys.exit(1)
+            parts = i + 1
+        else:
+            break
 
-            print('Concatenation is not possible, redownloading live VOD...')
-            sleep(60)
-            p_vod.close()
-
-        print('Concatenation is possible, waiting for stream to end')
-        p_vod.close()
-        break
-
-    p_stream.join()
-    p_stream.close()
-
-    print('Stream ended')
+    parts = record(v, stream, vod, parts)
 
     try:
-        t = Timeline([Clip(f'{v}.{part}.ts') for part in ['start', 'end']])
+        t = create_timeline(v, parts)
     except TimelineMissingRangeError as ex:
         print(ex)
         print('ERR: Unable to concatenate segments!')
@@ -231,7 +331,7 @@ def main(argv=None):
     t.render(output, force=args['--force'])
 
     print('Cleaning up...')
-    [os.unlink(f'{v}.{part}.ts') for part in ['start', 'end']]
+    [os.unlink(generate_filename(v, part)) for part in range(parts)]
 
 
 if __name__ == '__main__':

@@ -52,25 +52,32 @@ This script can be used to record live streams without waiting
 for them to end. It starts to record live stream immediately,
 then downloads VOD and concatenates them into full stream recording.
 
-Obviously, this script requires channel to have public VODs.
+Notice: This script requires channel to have public VODs.
+
+Main features:
+* Start recording at any time - stream will be recorded from the beginning;
+* Monitor streamlink process for errors and skipped segments - and fix them;
+* Resume recording after restart of the script - it is possible as long as
+the stream is still online and already downloaded parts are accessible;
+* Skip ads even without paid subscription - ad segments will be ignored by
+streamlink and missing original segments will be downloaded from VOD;
 
 Algorithm:
 1. Check if channel is live and VOD for current stream already exists;
 2. Get live VOD ID from Twitch API;
-3. Start downloading live stream into file `VOD.end.ts`;
-4. Wait 1 minute and start downloading VOD into file `VOD.start.ts`;
+3. Start downloading live stream into file `VOD.0.ts`;
+4. Wait 1 minute and start downloading VOD into file `VOD.1.ts`;
 5. Wait for VOD download to finish;
-6. Check the possibility of concatenation and redownload VOD if timeline is not complete;
+6. Check the possibility of concatenation and download missing parts of the timeline;
 7. Wait for stream to finish;
-8. Concatenate two parts via `concat` script (see above).
+8. Restart stream recording in case of errors or skipped segments, wait 1 minute and go to step 6;
+9. Concatenate all parts via `concat` script (see above).
 
 Note: Since Nov 2019 you have to provide your Twitch OAuth token in the command.
 Otherwise the script will not be able to detect the ID of the live VOD and
 download the beginning of the stream. At the moment, you will need to extract
 OAuth token from Twitch's cookie "auth-token". Other options such as providing
 your own Client-ID and token are not implemented yet.
-
-This script is just a proof of concept and probably should not be relied upon.
 
 ### Example
 
