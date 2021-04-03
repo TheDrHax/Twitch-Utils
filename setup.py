@@ -10,11 +10,11 @@ with open('README.md', 'r') as fi:
 
 EXTRAS = {
     'record': [
-        'streamlink>=1.0.0',
+        'streamlink>=2.0.0',
         'parse>=1.19.0'
     ],
     'offset': [
-        'praat-parselmouth>=0.3.3'
+        'praat-parselmouth>=0.4'
     ],
     'mute': [
         'numpy<1.19.0,>=1.16.0',
