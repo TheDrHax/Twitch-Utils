@@ -1,16 +1,21 @@
-"""Usage: twitch_utils record [options] --oauth=<token> [--] <channel> [<quality>] [-o <file>]
+"""Usage:
+    twitch_utils record [options] --oauth=<token> <channel>
+    twitch_utils record [options] [--oauth=<token>] <channel> <vod>
 
 Parameters:
-  channel       Name of the channel. Can be found in the URL: twitch.tv/<channel>
-  quality       Resolution and framerate of the recording. To get all available
-                values use `streamlink https://twitch.tv/<channel>`.
+  channel   Name of the channel. Can be found in the URL: twitch.tv/<channel>
+  vod       VOD of stream that is currently live. Can be found in the URL:
+            twitch.tv/videos/<vod>
 
 Options:
+  --quality <value> Choose stream quality to save. Accepts the same values as
+                    streamlink. To check available options use command
+                    `streamlink twitch.tv/<channel>`. [default: best]
   --oauth <token>   Twitch OAuth token. You need to extract it from the site's
                     cookie named "auth-token".
   -o <name>         Name of the output file. For more information see
-                    `twitch_utils concat --help`.
-  -j <threads>      Number of simultaneous downloads of live segments. [default: 4]
+                    `twitch_utils concat --help`. Defaults to `<vod>.ts`.
+  -j <threads>      Number of concurrent downloads of live segments. [default: 4]
   -y, --force       Overwrite output file without confirmation.
   --debug           Forward output of streamlink and ffmpeg to stderr.
 """
@@ -136,7 +141,6 @@ class Stream(object):
             elif 'No playable streams found' in line:
                 print('WARN: Stream appears to be offline')
                 sl_proc.terminate()
-                os.unlink(fo.name)
                 exit_code = 2
                 break
             elif 'Waiting for pre-roll ads' in line:
@@ -191,8 +195,17 @@ def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
         stream_proc = stream.download_async(generate_filename(vod_id, parts))
         parts += 1
 
-        sleep(60)
-        if not stream_proc.is_alive and stream_proc.exitcode == 2:
+        should_break = False
+        for i in range(60):
+            if stream_proc.exitcode == 2:
+                if parts == 1:
+                    sys.exit(1)
+                else:
+                    should_break = True
+                    break
+            sleep(1)
+
+        if should_break:
             break
 
         if parts == 1:
@@ -253,20 +266,8 @@ def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
     return parts
 
 
-def main(argv=None):
-    args = docopt(__doc__, argv=argv)
-
-    global DEBUG
-    DEBUG = args['--debug']
-
-    output = args['-o']
-
-    if output == '-':
-        print('ERR: This script does not support stdout as output.')
-        sys.exit(1)
-
-    api = TwitchAPI(args['--oauth'])
-    channel = args['<channel>']
+def find_vod(oauth: str, channel: str) -> str:
+    api = TwitchAPI(oauth)
 
     print(f'Checking if channel `{channel}` is active...')
 
@@ -294,7 +295,28 @@ def main(argv=None):
         print('ERR: Live VOD is not available yet')
         sys.exit(1)
 
-    v = vods[0]["id"]
+    return vods[0]["id"]
+
+
+def main(argv=None):
+    args = docopt(__doc__, argv=argv)
+
+    global DEBUG
+    DEBUG = args['--debug']
+
+    output = args['-o']
+
+    if output == '-':
+        print('ERR: This script does not support stdout as output.')
+        sys.exit(1)
+
+    channel = args['<channel>']
+
+    if args['--oauth'] and not args['<vod>']:
+        v = find_vod(args['--oauth'], channel)
+    else:
+        print('Assuming that stream is online and VOD is correct')
+        v = args['<vod>']
 
     stream = Stream(f'https://twitch.tv/{channel}',
                     quality=args.get('<quality>') or 'best',
