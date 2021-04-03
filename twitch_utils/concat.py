@@ -116,7 +116,7 @@ class Timeline(list):
 
         if path.endswith('.ts') or path == '-' and container == 'mpegts':
             command += ['-copyts']
-        
+
         command += ['-f', 'concat', '-safe', '0', '-hide_banner',
                     '-i', map_file_name, '-c', 'copy']
 
@@ -145,8 +145,16 @@ class Timeline(list):
 def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
+    clips = []
+
+    for path in args['<input>']:
+        try:
+            clips.append(Clip(path))
+        except Exception:
+            print(f'WARN: Clip {path} is corrupted, ignoring...')
+
     try:
-        timeline = Timeline([Clip(path) for path in args['<input>']])
+        timeline = Timeline(clips)
     except TimelineMissingRangeError as ex:
         print(f'ERROR: Range {int(ex.start)}~{int(ex.end)} is not present in '
               'provided files')
