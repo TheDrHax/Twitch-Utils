@@ -17,6 +17,8 @@ Options:
                     `twitch_utils concat --help`. Defaults to `<vod>.ts`.
   -j <threads>      Number of concurrent downloads of live segments. [default: 4]
   -y, --force       Overwrite output file without confirmation.
+  --no-concat       Only download all parts of the stream and ensure that
+                    concatenation is possible.
   --debug           Forward output of streamlink and ffmpeg to stderr.
 """
 
@@ -348,14 +350,23 @@ def main(argv=None):
         print('ERR: Unable to concatenate segments!')
         sys.exit(1)
 
-    if not output:
-        output = f'{v}.ts'
+    if not args['--no-concat']:
+        if not output:
+            output = f'{v}.ts'
 
-    print(f'Writing stream recording to {output}')
-    t.render(output, force=args['--force'])
+        print(f'Writing stream recording to {output}')
+        t.render(output, force=args['--force'])
 
-    print('Cleaning up...')
-    [os.unlink(generate_filename(v, part)) for part in range(parts)]
+        print('Cleaning up...')
+        [os.unlink(generate_filename(v, part)) for part in range(parts)]
+    else:
+        if not output:
+            output = f'{v}.mp4'
+
+        files = ' '.join(generate_filename(v, part) for part in range(parts))
+
+        print('Use this command to concatenate parts into a full video:')
+        print(f'> twitch_utils concat {files} -o {output}')
 
 
 if __name__ == '__main__':
