@@ -248,7 +248,7 @@ def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
             segment.start = max(0, missing_part[0] - 60)
             segment.end = missing_part[1] + 60
 
-            segment = segment.download_async(generate_filename(vod_id, parts))
+            vod_proc = segment.download_async(generate_filename(vod_id, parts))
             parts += 1
 
             vod_proc.join()
