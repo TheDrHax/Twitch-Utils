@@ -28,6 +28,7 @@ except ImportError:
 
 from time import sleep
 from docopt import docopt
+from parse import compile
 import dateutil.parser as dateparser
 from subprocess import Popen, PIPE
 from multiprocessing import Process
@@ -40,14 +41,23 @@ from .twitch import TwitchAPI
 DEBUG = False
 
 
-class Stream(object):  
-    def __init__(self, url: str, quality: str = 'best',
-                 threads: int = 1, oauth: str = None):
+class Stream(object):
+    PARSE_QUEUED = compile('{tag} Adding segment {segment:d} to queue{}')
+    PARSE_COMPLETE = compile('{tag} Download of segment {segment:d} complete{}')
+
+    def __init__(self, url: str,
+                 quality: str = 'best',
+                 threads: int = 1,
+                 oauth: str = None,
+                 start: int = 0,
+                 end: int = None):
         self.url = url
         self.quality = quality
         self.threads = threads
         self.oauth = oauth
-    
+        self.start = start
+        self.end = end
+
     def _args(self) -> list:
         params = {'hls-timeout': 60,
                   'hls-segment-timeout': 60,
@@ -57,25 +67,69 @@ class Stream(object):
         if self.oauth:
             params['twitch-oauth-token'] = self.oauth
 
-        return [f'--{key}={value}' for key, value in params.items()]
+        if self.start > 0:
+            params['hls-start-offset'] = self.start
 
-    def download(self, dest: str):
+        if self.end:
+            params['hls-duration'] = self.end - self.start
+
+        args = ['-l', 'debug']
+        args += [f'--{key}={value}' for key, value in params.items()]
+        args += [self.url, self.quality, '-O']
+
+        return args
+
+    def download(self, dest: str) -> bool:
         print(f'Downloading `{self.url}` into {dest}')
+        success = True
 
-        sl_cmd = ['streamlink', '-l', 'debug']
-        sl_cmd += self._args()
-        sl_cmd += [self.url, self.quality, '-O']
+        fo = open(dest, 'wb')
+        sl_cmd = ['streamlink'] + self._args()
+        sl_kwargs = {'stdout': fo,
+                     'stderr': PIPE,
+                     'text': True}
+        sl_proc = Popen(sl_cmd, **sl_kwargs)
 
-        with open(dest, 'wb') as fo:
-            sl_kwargs = {'stdout': fo,
-                         'stderr': sys.stderr if DEBUG else PIPE}
-            sl_proc = Popen(sl_cmd, **sl_kwargs)
-            sl_proc.wait()
+        expected, downloaded = [-1] * 2
 
-            if sl_proc.returncode != 0:
-                print(f'WARN: `{sl_cmd}` exited with non-zero '
-                      f'code ({sl_proc.returncode})')
-                sys.exit(sl_proc.returncode)
+        while True:
+            line = sl_proc.stderr.readline()
+
+            if not line:
+                break
+
+            if DEBUG:
+                print(line.rstrip(), file=sys.stderr)
+
+            queued = Stream.PARSE_QUEUED.parse(line)
+            complete = Stream.PARSE_COMPLETE.parse(line)
+
+            if queued:
+                segment = queued['segment']
+
+                if queued['segment'] > expected:
+                    expected = queued['segment']
+            elif complete:
+                segment = complete['segment']
+                print(f'Downloaded segment {segment} out of {expected}')
+
+                if downloaded == -1 or downloaded + 1 == segment:
+                    downloaded = segment
+                else:
+                    print(f'ERR: Skipped segment {downloaded + 1}')
+                    sl_proc.terminate()
+                    success = False
+                    break
+            elif 'Thread-TwitchHLSStreamWriter' in line:
+                print(f'ERR: {line}')
+                sl_proc.terminate()
+                success = False
+                break
+
+        fo.flush()
+        fo.close()
+
+        return success
 
 
 def main(argv=None):
