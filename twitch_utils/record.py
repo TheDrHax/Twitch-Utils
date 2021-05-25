@@ -184,15 +184,16 @@ def create_timeline(vod_id, parts):
 
 
 def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
-    resumed = parts > 0
     stream_result = -1
     missing_part = None
 
     while stream_result != 0:
-        if parts == 0:
-            print('Starting download of live stream')
-        else:
+        resumed = parts > 0
+
+        if resumed:
             print('Resuming download of live stream')
+        else:
+            print('Starting download of live stream')
 
         stream_proc = stream.download_async(generate_filename(vod_id, parts))
         parts += 1
