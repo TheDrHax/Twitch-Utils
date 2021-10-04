@@ -44,6 +44,9 @@ twitch_utils concat 1.ts 2.ts -o result.ts
 
 # pipe concatenated MPEG-TS stream to other applications
 twitch_utils concat 1.ts 2.ts -o - | ffmpeg -i - -c copy result.mp4
+
+# preview result in mpv with seeking
+twitch_utils concat 1.ts 2.ts -o - -f edl | mpv -
 ```
 
 ## record

@@ -13,6 +13,7 @@ Supported output formats:
   * mpegts (*.ts, -)
   * flv (*.flv, -)
   * txt (*.txt, -), map file for ffmpeg's concat demuxer
+  * edl (*.edl, -), EDL playlist for MPV (preview without concatenation)
 
 Options:
   -y, --force                     Overwrite output file without confirmation.
@@ -88,8 +89,26 @@ class Timeline(list):
             for c in self
         ])
 
+    def edl_map(self) -> str:
+        return '\n'.join([
+            '# mpv EDL v0',
+            '\n'.join(
+                f"%{len(c.path)}%{c.path},{c.inpoint},{c.duration}"
+                for c in self
+            )
+        ])
+
     def render(self, path: str = 'full.mp4', container: str = 'mp4',
                mp4_faststart: bool = False, force: bool = False) -> int:
+        if path.endswith('.edl') or path == '-' and container == 'edl':
+            if path == '-':
+                print(self.edl_map())
+            else:
+                with open(path, 'w') as fo:
+                    fo.write(self.edl_map())
+                    fo.flush()
+            return 0
+
         concat_map = self.ffconcat_map()
 
         if path.endswith('.txt') or path == '-' and container == 'txt':
