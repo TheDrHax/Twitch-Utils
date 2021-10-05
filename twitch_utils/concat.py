@@ -93,7 +93,7 @@ class Timeline(list):
         return '\n'.join([
             '# mpv EDL v0',
             '\n'.join(
-                f"%{len(c.path)}%{c.path},{c.inpoint},{c.duration}"
+                f"%{len(c.path)}%{c.path},{c.inpoint},{c.outpoint - c.inpoint}"
                 for c in self
             )
         ])
