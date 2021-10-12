@@ -47,6 +47,8 @@ twitch_utils concat 1.ts 2.ts -o - | ffmpeg -i - -c copy result.mp4
 
 # preview result in mpv with seeking
 twitch_utils concat 1.ts 2.ts -o - -f edl | mpv -
+# or...
+mpv $(twitch_utils concat 1.ts 2.ts -o - -f edl_uri)
 ```
 
 ## record

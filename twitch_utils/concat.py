@@ -14,6 +14,7 @@ Supported output formats:
   * flv (*.flv, -)
   * txt (*.txt, -), map file for ffmpeg's concat demuxer
   * edl (*.edl, -), EDL playlist for MPV (preview without concatenation)
+  * edl_uri (-), inline EDL URI for MPV
 
 Options:
   -y, --force                     Overwrite output file without confirmation.
@@ -29,6 +30,7 @@ MP4 options:
 
 import os
 import sys
+from typing import List
 
 from docopt import docopt
 from subprocess import run, PIPE
@@ -89,14 +91,17 @@ class Timeline(list):
             for c in self
         ])
 
+    def edl_parts(self) -> List[str]:
+        return [
+            f"%{len(c.path)}%{c.path},{c.inpoint},{c.outpoint - c.inpoint}"
+            for c in self
+        ]
+
+    def edl_uri(self) -> str:
+        return 'edl://' + ';'.join(self.edl_parts())
+
     def edl_map(self) -> str:
-        return '\n'.join([
-            '# mpv EDL v0',
-            '\n'.join(
-                f"%{len(c.path)}%{c.path},{c.inpoint},{c.outpoint - c.inpoint}"
-                for c in self
-            )
-        ])
+        return '# mpv EDL v0\n' + '\n'.join(self.edl_parts())
 
     def render(self, path: str = 'full.mp4', container: str = 'mp4',
                mp4_faststart: bool = False, force: bool = False) -> int:
@@ -107,6 +112,10 @@ class Timeline(list):
                 with open(path, 'w') as fo:
                     fo.write(self.edl_map())
                     fo.flush()
+            return 0
+
+        if path == '-' and container == 'edl_uri':
+            print(self.edl_uri())
             return 0
 
         concat_map = self.ffconcat_map()
