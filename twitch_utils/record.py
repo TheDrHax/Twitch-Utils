@@ -153,6 +153,10 @@ class Stream(object):
         fo.flush()
         fo.close()
 
+        if downloaded < expected:
+            print(f'ERR: Skipped segment {expected}')
+            exit_code = 1
+
         return exit_code
 
     def _target_download(self, *args):
