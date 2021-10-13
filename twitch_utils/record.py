@@ -240,8 +240,8 @@ def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
             except TimelineMissingRangeError as ex:
                 missing_part = (ex.start, ex.end)
                 print(f'WARN: Missing segment {ex.start}~{ex.end}, '
-                      'retrying in 60 seconds...')
-                sleep(60)
+                      'retrying in 120 seconds...')
+                sleep(120)
 
             print(f'Downloading segment {missing_part[0]}~{missing_part[1]}')
 
