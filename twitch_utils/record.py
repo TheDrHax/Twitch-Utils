@@ -72,8 +72,8 @@ class Stream(object):
                       self.oauth, self.start, self.end)
 
     def _args(self) -> list:
-        params = {'hls-timeout': 60,
-                  'hls-segment-timeout': 60,
+        params = {'hls-timeout': 30,
+                  'hls-segment-timeout': 30,
                   'hls-segment-attempts': 5,
                   'hls-segment-threads': self.threads}
 
