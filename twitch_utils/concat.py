@@ -52,15 +52,20 @@ class Timeline(list):
     def find_clip(clips: list, pos: float) -> Clip:
         abs_start = clips[0].start
         end = None
+        found = None
 
         for clip in clips:
             if clip.start <= pos and clip.end > pos:
-                return clip
+                if not found or found.duration < clip.duration:
+                    found = clip
 
-            if clip.start > pos:
+            if clip.start > pos and not end:
                 end = clip.start
 
-        raise TimelineMissingRangeError(pos - abs_start, end - abs_start)
+        if not found:
+            raise TimelineMissingRangeError(pos - abs_start, end - abs_start)
+
+        return found
 
     def __init__(self, clips: list):
         clips.sort(key=lambda k: k.start)
