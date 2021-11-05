@@ -273,38 +273,6 @@ def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
     return parts
 
 
-def find_vod(oauth: str, channel: str) -> str:
-    api = TwitchAPI(oauth)
-
-    print(f'Checking if channel `{channel}` is active...')
-
-    status = api.helix('streams', user_login=channel)['data']
-
-    if not status:
-        print('ERR: Channel is offline')
-        sys.exit(1)
-    else:
-        status = status[0]
-
-    print('Attempting to find ID of the live VOD...')
-
-    vods = api.helix('videos', user_id=status['user_id'],
-                     first=1, type='archive')['data']
-
-    if len(vods) == 0:
-        print('ERR: No VODs found on channel')
-        sys.exit(1)
-
-    stream_date = dateparser.isoparse(status['started_at'])
-    vod_date = dateparser.isoparse(vods[0]['created_at'])
-
-    if vod_date < stream_date:
-        print('ERR: Live VOD is not available yet')
-        sys.exit(1)
-
-    return vods[0]["id"]
-
-
 def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
@@ -320,7 +288,8 @@ def main(argv=None):
     channel = args['<channel>']
 
     if args['--oauth'] and not args['<vod>']:
-        v = find_vod(args['--oauth'], channel)
+        api = TwitchAPI(args['--oauth'])
+        v = api.find_vod(channel)
     else:
         print('Assuming that stream is online and VOD is correct')
         v = args['<vod>']

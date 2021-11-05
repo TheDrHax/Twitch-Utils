@@ -5,7 +5,6 @@ class TwitchAPI:
     @staticmethod
     def _session(token: str) -> Session:
         s = Session()
-        s.headers['Acccept'] = 'application/vnd.twitchtv.v5+json'
         s.headers['Client-ID'] = 'kimne78kx3ncx6brgo4mv6wki5h1ko'
         s.headers['Authorization'] = f'Bearer {token}'
         return s
@@ -13,19 +12,35 @@ class TwitchAPI:
     def __init__(self, oauth: str):
         self.session = self._session(oauth)
 
-    def get(self, namespace: str, method: str, **payload):
-        url = f'https://api.twitch.tv/{namespace}/{method}'
-
-        if len(payload.keys()) > 0:
-            params = '&'.join([f'{k}={v}' for k, v in payload.items()])
-            url += '?' + params
-
-        res = self.session.get(url)
+    def gql(self, query: str) -> dict:
+        res = self.session.post('https://gql.twitch.tv/gql', json={'query': query})
 
         if res.status_code == 200:
             return res.json()
         else:
             raise Exception(res.text)
 
-    def helix(self, method: str, **payload):
-        return self.get('helix', method, **payload)
+    def find_vod(self, user: str) -> str:
+        res = self.gql(f'''
+            query {{
+                user(login: "{user}") {{
+                    stream {{
+                        archiveVideo {{
+                            id
+                        }}
+                    }}
+                }}
+            }}
+        ''')
+
+        user = res['data']['user']
+
+        if user is None:
+            raise Exception('Channel not found')
+        
+        stream = user['stream']
+
+        if stream is None:
+            raise Exception('Stream appears to be offline')
+
+        return stream['archiveVideo']['id']
