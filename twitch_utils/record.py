@@ -52,7 +52,7 @@ DEBUG = False
 
 class Stream(object):
     PARSE_QUEUED = compile('{} Adding segment {segment:d} to queue{}')
-    PARSE_COMPLETE = compile('{} Download of segment {segment:d} complete{}')
+    PARSE_COMPLETE = compile('{} Segment {segment:d} complete{}')
 
     def __init__(self, url: str,
                  quality: str = 'best',

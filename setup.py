@@ -10,7 +10,7 @@ with open('README.md', 'r') as fi:
 
 EXTRAS = {
     'record': [
-        'streamlink>=2.0.0',
+        'streamlink>=2.4.0',
         'parse>=1.19.0'
     ],
     'offset': [
