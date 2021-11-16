@@ -86,7 +86,7 @@ class Stream(object):
         if self.end:
             params['hls-duration'] = math.ceil(self.end - self.start)
 
-        args = ['-l', 'debug', '--twitch-disable-ads']
+        args = ['-l', 'debug', '--twitch-disable-ads', '--twitch-low-latency']
         args += [f'--{key}={value}' for key, value in params.items()]
         args += [self.url, self.quality, '-O']
 
