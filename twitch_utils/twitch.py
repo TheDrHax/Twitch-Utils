@@ -6,7 +6,7 @@ class TwitchAPI:
     def _session(token: str) -> Session:
         s = Session()
         s.headers['Client-ID'] = 'kimne78kx3ncx6brgo4mv6wki5h1ko'
-        s.headers['Authorization'] = f'Bearer {token}'
+        s.headers['Authorization'] = f'OAuth {token}'
         return s
 
     def __init__(self, oauth: str):

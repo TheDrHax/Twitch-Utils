@@ -78,7 +78,7 @@ class Stream(object):
                   'hls-segment-threads': self.threads}
 
         if self.oauth:
-            params['twitch-oauth-token'] = self.oauth
+            params['twitch-api-header'] = f'Authorization=OAuth {self.oauth}'
 
         if self.start > 0:
             params['hls-start-offset'] = math.floor(self.start)
