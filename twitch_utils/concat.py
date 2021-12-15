@@ -184,13 +184,15 @@ def main(argv=None):
         try:
             clips.append(Clip(path))
         except Exception:
-            print(f'WARN: Clip {path} is corrupted, ignoring...')
+            print(f'WARN: Clip {path} is corrupted, ignoring...',
+                  file=sys.stderr)
 
     try:
         timeline = Timeline(clips)
     except TimelineMissingRangeError as ex:
         print(f'ERROR: Range {int(ex.start)}~{int(ex.end)} is not present in '
-              'provided files')
+              'provided files',
+              file=sys.stderr)
         sys.exit(1)
 
     sys.exit(timeline.render(args['--output'],
