@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from requests import Session
 
 
@@ -10,6 +11,7 @@ class TwitchAPI:
         return s
 
     def __init__(self, oauth: str):
+        self.token = oauth
         self.session = self._session(oauth)
 
     def gql(self, query: str) -> dict:
@@ -20,27 +22,39 @@ class TwitchAPI:
         else:
             raise Exception(res.text)
 
-    def find_vod(self, user: str) -> str:
+    def get_stream_id(self, login: str, stream_type: str = 'live'):
+        """Returns ID of VOD if stream is live."""
+
         res = self.gql(f'''
             query {{
-                user(login: "{user}") {{
+                user(login: "{login}") {{
                     stream {{
                         archiveVideo {{
                             id
                         }}
+                        type
                     }}
                 }}
             }}
         ''')
 
-        user = res['data']['user']
+        user: Dict[str, Any] = res['data']['user']
 
         if user is None:
             raise Exception('Channel not found')
-        
-        stream = user['stream']
+
+        stream: Dict[str, Any] = user['stream']
 
         if stream is None:
             raise Exception('Stream appears to be offline')
 
-        return stream['archiveVideo']['id']
+        if stream['type'] != stream_type:
+            raise Exception(f'Stream type is "{stream["type"]}" '
+                            f'instead of "{stream_type}"')
+
+        vod: Dict[str, Any] = stream['archiveVideo']
+
+        if vod is None:
+            raise Exception('VOD not found')
+
+        return vod['id']

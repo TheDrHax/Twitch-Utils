@@ -26,6 +26,7 @@ import os
 import sys
 import math
 import itertools
+from typing import Dict, Union
 
 try:
     import streamlink
@@ -38,7 +39,6 @@ except ImportError:
 from time import sleep
 from docopt import docopt
 from parse import compile
-import dateutil.parser as dateparser
 from subprocess import Popen, PIPE
 from multiprocessing import Process
 
@@ -57,9 +57,9 @@ class Stream(object):
     def __init__(self, url: str,
                  quality: str = 'best',
                  threads: int = 1,
-                 oauth: str = None,
+                 oauth: Union[str, None] = None,
                  start: int = 0,
-                 end: int = None):
+                 end: Union[int, None] = None):
         self.url = url
         self.quality = quality
         self.threads = threads
@@ -72,10 +72,12 @@ class Stream(object):
                       self.oauth, self.start, self.end)
 
     def _args(self) -> list:
-        params = {'hls-timeout': 30,
-                  'hls-segment-timeout': 30,
-                  'hls-segment-attempts': 5,
-                  'hls-segment-threads': self.threads}
+        params: Dict[str, Union[str, int]] = {
+            'hls-timeout': 30,
+            'hls-segment-timeout': 30,
+            'hls-segment-attempts': 5,
+            'hls-segment-threads': self.threads
+        }
 
         if self.oauth:
             params['twitch-api-header'] = f'Authorization=OAuth {self.oauth}'
@@ -92,7 +94,7 @@ class Stream(object):
 
         return args
 
-    def download(self, dest: str) -> bool:
+    def download(self, dest: str) -> int:
         """Exit codes: 0 - success, 1 - should retry, 2 - should stop"""
 
         print(f'Downloading `{self.url}` into {dest}')
@@ -100,9 +102,11 @@ class Stream(object):
 
         fo = open(dest, 'wb')
         sl_cmd = ['streamlink'] + self._args()
+        sl_env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
         sl_kwargs = {'stdout': fo,
                      'stderr': PIPE,
-                     'text': True}
+                     'text': True,
+                     'env': sl_env}
         sl_proc = Popen(sl_cmd, **sl_kwargs)
 
         expected, downloaded = [-1] * 2
@@ -187,9 +191,30 @@ def create_timeline(vod_id, parts):
     return Timeline(clips)
 
 
-def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
+def is_still_live(api: TwitchAPI, channel: str, vod: str) -> bool:
+    try:
+        new_vod = api.get_stream_id(channel)
+        return vod == new_vod
+    except Exception:
+        return False
+
+
+def record(channel_name: str, vod_id: str,
+           quality: str = 'best', threads: int = 4,
+           parts: int = 0,
+           api: Union[TwitchAPI, None] = None) -> int:
     stream_result = -1
     missing_part = None
+
+    stream = Stream(f'https://twitch.tv/{channel_name}',
+                    oauth=api.token if api else None,
+                    quality=quality,
+                    threads=threads)
+
+    vod = Stream(f'https://twitch.tv/videos/{vod_id}',
+                    oauth=api.token if api else None,
+                    quality=quality,
+                    threads=1)
 
     while stream_result != 0:
         resumed = parts > 0
@@ -269,6 +294,10 @@ def record(vod_id: str, stream: Stream, vod: Stream, parts: int = 0) -> int:
             print('Resuming in 60 seconds...')
             sleep(60)
 
+            if api and not is_still_live(api, channel_name, vod_id):
+                print('Stream ended')
+                break
+
     print('All parts are downloaded!')
     return parts
 
@@ -289,25 +318,16 @@ def main(argv=None):
 
     if args['--oauth'] and not args['<vod>']:
         api = TwitchAPI(args['--oauth'])
-        v = api.find_vod(channel)
+        vod = api.get_stream_id(channel)
     else:
         print('Assuming that stream is online and VOD is correct')
-        v = args['<vod>']
-
-    stream = Stream(f'https://twitch.tv/{channel}',
-                    oauth=args['--oauth'],
-                    quality=args['--quality'],
-                    threads=args['-j'])
-
-    vod = Stream(f'https://twitch.tv/videos/{v}',
-                 oauth=args['--oauth'],
-                 quality=stream.quality,
-                 threads=1)
+        api = None
+        vod = args['<vod>']
 
     parts = 0
 
     for i in itertools.count():
-        if os.path.exists(generate_filename(v, i)):
+        if os.path.exists(generate_filename(vod, i)):
             if i == 0:
                 print('Found previous segments, resuming download')
 
@@ -315,10 +335,10 @@ def main(argv=None):
         else:
             break
 
-    parts = record(v, stream, vod, parts)
+    parts = record(channel, vod, args['--quality'], args['-j'], parts, api)
 
     try:
-        t = create_timeline(v, parts)
+        t = create_timeline(vod, parts)
     except TimelineMissingRangeError as ex:
         print(ex)
         print('ERR: Unable to concatenate segments!')
@@ -326,18 +346,18 @@ def main(argv=None):
 
     if not args['--no-concat']:
         if not output:
-            output = f'{v}.ts'
+            output = f'{vod}.ts'
 
         print(f'Writing stream recording to {output}')
         t.render(output, force=args['--force'])
 
         print('Cleaning up...')
-        [os.unlink(generate_filename(v, part)) for part in range(parts)]
+        [os.unlink(generate_filename(vod, part)) for part in range(parts)]
     else:
         if not output:
-            output = f'{v}.mp4'
+            output = f'{vod}.mp4'
 
-        files = ' '.join(generate_filename(v, part) for part in range(parts))
+        files = ' '.join(generate_filename(vod, part) for part in range(parts))
 
         print('Use this command to concatenate parts into a full video:')
         print(f'> twitch_utils concat {files} -o {output}')
