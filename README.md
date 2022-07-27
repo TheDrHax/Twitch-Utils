@@ -133,3 +133,7 @@ Note: Prebuilt binaries of Tensorflow require CPUs with AVX support.
 # Remove music from 5:00 to 8:00 and from 1:00:00 to 1:05:00
 twitch_utils mute input.mp4 5:00~8:00 1:00:00~1:05:00 -o output.mp4
 ```
+
+# Thanks
+
+* [TwitchRecover](https://github.com/TwitchRecover/TwitchRecover) for finding a way to download unlisted/broken VODs

@@ -26,7 +26,7 @@ import os
 import sys
 import math
 import itertools
-from typing import Dict, Union
+from typing import Dict, Union, Any
 
 try:
     import streamlink
@@ -191,18 +191,11 @@ def create_timeline(vod_id, parts):
     return Timeline(clips)
 
 
-def is_still_live(api: TwitchAPI, channel: str, vod: str) -> bool:
-    try:
-        new_vod = api.get_stream_id(channel)
-        return vod == new_vod
-    except Exception:
-        return False
-
-
-def record(channel_name: str, vod_id: str,
+def record(channel_name: str, vod_id: str, vod_url: str = None,
            quality: str = 'best', threads: int = 4,
            parts: int = 0,
-           api: Union[TwitchAPI, None] = None) -> int:
+           api: Union[TwitchAPI, None] = None,
+           stream_obj: Union[Dict[str, Any], None] = None) -> int:
     stream_result = -1
     missing_part = None
 
@@ -211,10 +204,13 @@ def record(channel_name: str, vod_id: str,
                     quality=quality,
                     threads=threads)
 
-    vod = Stream(f'https://twitch.tv/videos/{vod_id}',
-                    oauth=api.token if api else None,
-                    quality=quality,
-                    threads=1)
+    if not vod_url:
+        vod_url = f'https://twitch.tv/videos/{vod_id}'
+
+    vod = Stream(vod_url,
+                 oauth=api.token if api else None,
+                 quality=quality,
+                 threads=1)
 
     while stream_result != 0:
         resumed = parts > 0
@@ -294,7 +290,7 @@ def record(channel_name: str, vod_id: str,
             print('Resuming in 60 seconds...')
             sleep(60)
 
-            if api and not is_still_live(api, channel_name, vod_id):
+            if api and not api.is_still_live(api, stream_obj):
                 print('Stream ended')
                 break
 
@@ -318,11 +314,22 @@ def main(argv=None):
 
     if args['--oauth'] and not args['<vod>']:
         api = TwitchAPI(args['--oauth'])
-        vod = api.get_stream_id(channel)
+        stream = api.get_stream(channel)
+
+        try:
+            vod = api.get_active_vod(stream)
+            vod_url = None
+        except Exception:
+            print('VOD is not listed, attempting to find the playlist')
+            vod_url = api.vod_probe(stream)
+            vod = stream['id']
+            print(f'VOD found! Using stream ID {vod} as base name')
     else:
         print('Assuming that stream is online and VOD is correct')
         api = None
+        stream = None
         vod = args['<vod>']
+        vod_url = None
 
     parts = 0
 
@@ -335,7 +342,7 @@ def main(argv=None):
         else:
             break
 
-    parts = record(channel, vod, args['--quality'], args['-j'], parts, api)
+    parts = record(channel, vod, vod_url, args['--quality'], args['-j'], parts, api, stream)
 
     try:
         t = create_timeline(vod, parts)
