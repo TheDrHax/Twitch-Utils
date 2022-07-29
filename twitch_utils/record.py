@@ -290,7 +290,7 @@ def record(channel_name: str, vod_id: str, vod_url: str = None,
             print('Resuming in 60 seconds...')
             sleep(60)
 
-            if api and not api.is_still_live(api, stream_obj):
+            if api and not api.is_still_live(stream_obj):
                 print('Stream ended')
                 break
 
