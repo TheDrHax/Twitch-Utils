@@ -324,6 +324,11 @@ def main(argv=None):
             vod_url = api.vod_probe(stream)
             vod = stream['id']
             print(f'VOD found! Using stream ID {vod} as base name')
+
+            if args['--quality'] != 'best':
+                print('WARN: Resetting quality to `best` (other options are '
+                      'not supported yet)')
+                args['--quality'] = 'best'
     else:
         print('Assuming that stream is online and VOD is correct')
         api = None
