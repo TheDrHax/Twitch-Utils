@@ -73,8 +73,6 @@ class Stream(object):
 
     def _args(self) -> list:
         params: Dict[str, Union[str, int]] = {
-            'hls-timeout': 30,
-            'hls-segment-timeout': 30,
             'hls-segment-attempts': 5,
             'hls-segment-threads': self.threads
         }
