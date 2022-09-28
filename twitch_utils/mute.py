@@ -52,6 +52,17 @@ def main(argv=None):
     sample_rate = 44100
     separator = Separator('spleeter:2stems')
 
+    new_ranges = []
+    for r in ranges:
+        start, end = r
+        
+        while end - start > 300:
+            new_ranges.append((start, start + 300))
+            start += 300
+        
+        new_ranges.append((start, end))
+
+    ranges = new_ranges
     segments = {}
 
     for start, end in ranges:
