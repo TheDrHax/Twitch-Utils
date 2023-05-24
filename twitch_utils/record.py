@@ -189,7 +189,7 @@ def create_timeline(vod_id, parts):
     return Timeline(clips)
 
 
-def record(channel_name: str, vod_id: str, vod_url: str = None,
+def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
            quality: str = 'best', threads: int = 4,
            parts: int = 0,
            api: Union[TwitchAPI, None] = None,
@@ -288,7 +288,7 @@ def record(channel_name: str, vod_id: str, vod_url: str = None,
             print('Resuming in 60 seconds...')
             sleep(60)
 
-            if api and not api.is_still_live(stream_obj):
+            if api and stream_obj and not api.is_still_live(stream_obj):
                 print('Stream ended')
                 break
 
@@ -310,13 +310,19 @@ def main(argv=None):
 
     channel = args['<channel>']
 
-    if args['--oauth'] and not args['<vod>']:
+    api = None
+    stream = None
+    vod = args['<vod>']
+    vod_url = None
+
+    if args['--oauth']:
         api = TwitchAPI(args['--oauth'])
         stream = api.get_stream(channel)
 
         try:
-            vod = api.get_active_vod(stream)
-            vod_url = None
+            if not vod:
+                vod = api.get_active_vod(stream)
+                vod_url = None
         except Exception:
             print('VOD is not listed, attempting to find the playlist')
             vod_url = api.vod_probe(stream)
@@ -324,15 +330,15 @@ def main(argv=None):
             print(f'VOD found! Using stream ID {vod} as base name')
 
             if args['--quality'] != 'best':
-                print('WARN: Resetting quality to `best` (other options are '
-                      'not supported yet)')
+                print('WARN: Resetting quality to `best` (other options '
+                      'are not supported yet)')
                 args['--quality'] = 'best'
+
+        if not vod:
+            print('ERR: Unable to find VOD')
+            sys.exit(1)
     else:
         print('Assuming that stream is online and VOD is correct')
-        api = None
-        stream = None
-        vod = args['<vod>']
-        vod_url = None
 
     parts = 0
 
