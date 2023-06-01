@@ -76,8 +76,8 @@ class Stream(object):
 
     def _args(self) -> list:
         params: Dict[str, Union[str, int]] = {
-            'hls-segment-attempts': 5,
-            'hls-segment-threads': self.threads
+            'stream-segment-attempts': 5,
+            'stream-segment-threads': self.threads
         }
 
         if self.start > 0:
