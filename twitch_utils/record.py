@@ -1,6 +1,5 @@
 """Usage:
-    twitch_utils record [options] [--header=<arg>]... --oauth=<token> <channel>
-    twitch_utils record [options] [--header=<arg>]... [--oauth=<token>] <channel> <vod>
+    twitch_utils record [options] [--header=<arg>]... <channel> [<vod>]
 
 Parameters:
   channel   Name of the channel. Can be found in the URL: twitch.tv/<channel>
@@ -13,9 +12,9 @@ Options:
                     `streamlink twitch.tv/<channel>`. [default: best]
   --oauth <token>   Twitch OAuth token. You need to extract it from the site's
                     cookie named "auth-token". Equivalent to
-                    header="Authorization=OAuth ...".
-  --header <value>  Add custom headers to all Twitch API calls. Example:
-                    X-Device-Id=value.
+                    header="Authorization=OAuth <token>".
+  --header <value>  Add custom headers to all Twitch API calls (including
+                    streamlink). Example: "X-Device-Id=value".
   -o <name>         Name of the output file. For more information see
                     `twitch_utils concat --help`. Defaults to `<vod>.ts`.
   -j <threads>      Number of concurrent downloads of live segments. [default: 4]
@@ -330,30 +329,27 @@ def main(argv=None):
     if args['--oauth']:
         headers['Authorization'] = 'OAuth ' + args['--oauth']
 
-    if 'Authorization' in headers:
-        api = TwitchAPI(headers)
-        stream = api.get_stream(channel)
+    api = TwitchAPI(headers)
+    stream = api.get_stream(channel)
 
-        try:
-            if not vod:
-                vod = api.get_active_vod(stream)
-                vod_url = None
-        except Exception:
-            print('VOD is not listed, attempting to find the playlist')
-            vod_url = api.vod_probe(stream)
-            vod = stream['id']
-            print(f'VOD found! Using stream ID {vod} as base name')
-
-            if args['--quality'] != 'best':
-                print('WARN: Resetting quality to `best` (other options '
-                      'are not supported yet)')
-                args['--quality'] = 'best'
-
+    try:
         if not vod:
-            print('ERR: Unable to find VOD')
-            sys.exit(1)
-    else:
-        print('Assuming that stream is online and VOD is correct')
+            vod = api.get_active_vod(stream)
+            vod_url = None
+    except Exception:
+        print('VOD is not listed, attempting to find the playlist')
+        vod_url = api.vod_probe(stream)
+        vod = stream['id']
+        print(f'VOD found! Using stream ID {vod} as base name')
+
+        if args['--quality'] != 'best':
+            print('WARN: Resetting quality to `best` (other options '
+                    'are not supported yet)')
+            args['--quality'] = 'best'
+
+    if not vod:
+        print('ERR: Unable to find VOD')
+        sys.exit(1)
 
     parts = 0
 

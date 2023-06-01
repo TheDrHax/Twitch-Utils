@@ -57,8 +57,6 @@ This script can be used to record live streams without waiting
 for them to end. It starts to record live stream immediately,
 then downloads VOD and concatenates them into full stream recording.
 
-Notice: This script requires channel to have public VODs.
-
 Main features:
 * Start recording at any time - stream will be recorded from the beginning;
 * Monitor streamlink process for errors and skipped segments - and fix them;
@@ -78,17 +76,11 @@ Algorithm:
 8. Restart stream recording in case of errors or skipped segments, wait 1 minute and go to step 6;
 9. Concatenate all parts via `concat` script (see above).
 
-Note: Since Nov 2019 you have to provide your Twitch OAuth token in the command.
-Otherwise the script will not be able to detect the ID of the live VOD and
-download the beginning of the stream. At the moment, you will need to extract
-OAuth token from Twitch's cookie "auth-token". Other options such as providing
-your own Client-ID and token are not implemented yet.
-
 ### Example
 
 ```
 # Record live stream of channel 'blackufa' using 2 threads
-twitch_utils record --oauth=YOUR_TOKEN blackufa -j 2
+twitch_utils record -j 2 blackufa
 ```
 
 ## offset
