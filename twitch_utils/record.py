@@ -72,7 +72,7 @@ class Stream(object):
 
     def copy(self):
         return Stream(self.url, self.quality, self.threads,
-                      self.oauth, self.start, self.end)
+                      self.api, self.start, self.end)
 
     def _args(self) -> list:
         params: Dict[str, Union[str, int]] = {
