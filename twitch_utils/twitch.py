@@ -1,13 +1,19 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, List
 from requests import Session
 from datetime import datetime
 from hashlib import sha1
+from urllib.parse import urlparse
 import dateutil.parser as dp
+from streamlink import NoPluginError
+
+try:
+    from streamlink import Streamlink
+except ImportError:
+    Streamlink = None
 
 
 # Source: https://raw.githubusercontent.com/TwitchRecover/TwitchRecover/main/domains.txt
 # TODO: Fetch updated list if possible
-# TODO: Guess by VODs available on the channel
 VOD_DOMAINS = [
     'vod-secure.twitch.tv',
     'vod-metro.twitch.tv',
@@ -33,15 +39,17 @@ def vod_path(channel: str, stream_id: str, started_at: datetime) -> str:
 
 
 class TwitchAPI:
-    @staticmethod
-    def _session(headers: Dict[str, str]) -> Session:
-        s = Session()
-        s.headers['Client-ID'] = 'ue6666qo983tsx6so1t0vnawi233wa'
-        s.headers.update(headers)
-        return s
+    def __init__(self, headers: Dict[str, str] = {}):
+        self.session = Session()
 
-    def __init__(self, headers: Dict[str, str]):
-        self.session = self._session(headers)
+        if Streamlink:
+            self.sl = Streamlink()
+            self.session.headers = self.sl.http.headers
+        else:
+            self.sl = None
+
+        self.session.headers['Client-ID'] = 'ue6666qo983tsx6so1t0vnawi233wa'
+        self.session.headers.update(headers)
 
     def gql(self, query: str) -> dict:
         res = self.session.post('https://gql.twitch.tv/gql', json={'query': query})
@@ -99,6 +107,42 @@ class TwitchAPI:
 
         return vod['id']
 
+    def get_vod_ids(self, login: str, first: int = 10) -> List[str]:
+        res = self.gql(f'''
+            query {{
+                user(login: "{login}") {{
+                    videos(first: {first}) {{
+                        edges {{
+                            node {{
+                                id
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        ''')
+
+        videos = res['data']['user']['videos']['edges']
+        return [video['node']['id'] for video in videos]
+
+    def vod_probe_domain(self, login: str) -> Union[str, None]:
+        if not self.sl:
+            return None
+
+        try:
+            prev_vod = self.get_vod_ids(login, first=1)[0]
+        except IndexError:
+            return None
+
+        try:
+            streams = self.sl.streams(f'twitch.tv/videos/{prev_vod}')
+        except NoPluginError:
+            return None
+
+        stream = list(streams.values())[0]
+        url = urlparse(stream.url)
+        return url.hostname
+
     def vod_probe(self, stream: Dict[str, Any]) -> str:
         """Returns URL of VOD's playlist."""
         stream_id = stream['id']
@@ -107,7 +151,11 @@ class TwitchAPI:
 
         path = vod_path(login, stream_id, started_at)
 
-        for domain in VOD_DOMAINS:
+        # Try domain from previous VOD first
+        predicted_domain = self.vod_probe_domain(login)
+        domains = sorted(VOD_DOMAINS, key=lambda x: x != predicted_domain)
+
+        for domain in domains:
             url = f'https://{domain}{path}'
             res = self.session.head(url)
 
