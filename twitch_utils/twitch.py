@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from requests import Session
 from datetime import datetime
 from hashlib import sha1
@@ -34,15 +34,14 @@ def vod_path(channel: str, stream_id: str, started_at: datetime) -> str:
 
 class TwitchAPI:
     @staticmethod
-    def _session(token: str) -> Session:
+    def _session(headers: Dict[str, str]) -> Session:
         s = Session()
         s.headers['Client-ID'] = 'kimne78kx3ncx6brgo4mv6wki5h1ko'
-        s.headers['Authorization'] = f'OAuth {token}'
+        s.headers.update(headers)
         return s
 
-    def __init__(self, oauth: str):
-        self.token = oauth
-        self.session = self._session(oauth)
+    def __init__(self, headers: Dict[str, str]):
+        self.session = self._session(headers)
 
     def gql(self, query: str) -> dict:
         res = self.session.post('https://gql.twitch.tv/gql', json={'query': query})
@@ -51,6 +50,9 @@ class TwitchAPI:
             return res.json()
         else:
             raise Exception(res.text)
+
+    def get_headers(self) -> Dict[str, Union[str, bytes]]:
+        return dict(self.session.headers)
 
     def get_stream(self, login: str) -> Dict[str, Any]:
         res = self.gql(f'''

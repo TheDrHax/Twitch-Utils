@@ -1,6 +1,6 @@
 """Usage:
-    twitch_utils record [options] --oauth=<token> <channel>
-    twitch_utils record [options] [--oauth=<token>] <channel> <vod>
+    twitch_utils record [options] [--header=<arg>]... --oauth=<token> <channel>
+    twitch_utils record [options] [--header=<arg>]... [--oauth=<token>] <channel> <vod>
 
 Parameters:
   channel   Name of the channel. Can be found in the URL: twitch.tv/<channel>
@@ -12,7 +12,10 @@ Options:
                     streamlink. To check available options use command
                     `streamlink twitch.tv/<channel>`. [default: best]
   --oauth <token>   Twitch OAuth token. You need to extract it from the site's
-                    cookie named "auth-token".
+                    cookie named "auth-token". Equivalent to
+                    header="Authorization=OAuth ...".
+  --header <value>  Add custom headers to all Twitch API calls. Example:
+                    X-Device-Id=value.
   -o <name>         Name of the output file. For more information see
                     `twitch_utils concat --help`. Defaults to `<vod>.ts`.
   -j <threads>      Number of concurrent downloads of live segments. [default: 4]
@@ -57,13 +60,13 @@ class Stream(object):
     def __init__(self, url: str,
                  quality: str = 'best',
                  threads: int = 1,
-                 oauth: Union[str, None] = None,
+                 api: Union[TwitchAPI, None] = None,
                  start: int = 0,
                  end: Union[int, None] = None):
         self.url = url
         self.quality = quality
         self.threads = threads
-        self.oauth = oauth
+        self.api = api
         self.start = start
         self.end = end
 
@@ -77,9 +80,6 @@ class Stream(object):
             'hls-segment-threads': self.threads
         }
 
-        if self.oauth:
-            params['twitch-api-header'] = f'Authorization=OAuth {self.oauth}'
-
         if self.start > 0:
             params['hls-start-offset'] = math.floor(self.start)
 
@@ -88,6 +88,11 @@ class Stream(object):
 
         args = ['-l', 'debug', '--twitch-disable-ads', '--twitch-low-latency']
         args += [f'--{key}={value}' for key, value in params.items()]
+
+        if self.api:
+            for key, value in self.api.get_headers().items():
+                args += [f'--twitch-api-header={key}={value}']
+
         args += [self.url, self.quality, '-O']
 
         return args
@@ -198,7 +203,7 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
     missing_part = None
 
     stream = Stream(f'https://twitch.tv/{channel_name}',
-                    oauth=api.token if api else None,
+                    api=api,
                     quality=quality,
                     threads=threads)
 
@@ -206,7 +211,7 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
         vod_url = f'https://twitch.tv/videos/{vod_id}'
 
     vod = Stream(vod_url,
-                 oauth=api.token if api else None,
+                 api=api,
                  quality=quality,
                  threads=1)
 
@@ -315,8 +320,17 @@ def main(argv=None):
     vod = args['<vod>']
     vod_url = None
 
+    headers = {}
+
+    for header in args['--header']:
+        key, value = header.split('=', 1)
+        headers[key] = value
+
     if args['--oauth']:
-        api = TwitchAPI(args['--oauth'])
+        headers['Authorization'] = 'OAuth ' + args['--oauth']
+
+    if 'Authorization' in headers:
+        api = TwitchAPI(headers)
         stream = api.get_stream(channel)
 
         try:
