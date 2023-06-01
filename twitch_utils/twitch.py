@@ -36,7 +36,7 @@ class TwitchAPI:
     @staticmethod
     def _session(headers: Dict[str, str]) -> Session:
         s = Session()
-        s.headers['Client-ID'] = 'kimne78kx3ncx6brgo4mv6wki5h1ko'
+        s.headers['Client-ID'] = 'ue6666qo983tsx6so1t0vnawi233wa'
         s.headers.update(headers)
         return s
 
