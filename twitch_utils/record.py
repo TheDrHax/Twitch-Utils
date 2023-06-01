@@ -33,6 +33,7 @@ from typing import Dict, Union, Any
 
 try:
     import streamlink
+    from parse import compile
 except ImportError:
     print('Error: You need to install tdh-twitch-utils[record] or '
           'tdh-twitch-utils[all] to use this feature.',
@@ -41,7 +42,6 @@ except ImportError:
 
 from time import sleep
 from docopt import docopt
-from parse import compile
 from subprocess import Popen, PIPE
 from multiprocessing import Process
 
