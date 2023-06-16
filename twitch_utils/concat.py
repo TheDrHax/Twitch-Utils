@@ -81,14 +81,21 @@ class Timeline(list):
             if len(self) < 2:
                 continue
 
-            # Cut both segments in the middle of the overlap to avoid
-            # losing or duplicating frames on the edges
-            #                       outpoint   end
-            # self[-2] ================|--------|
-            #                 |--------|============ self[-1]
-            #               start   inpoint
-            middle = self[-1].start + (self[-2].end - self[-1].start) / 2
-            self[-2].outpoint = self[-1].inpoint = middle
+            a, b = self[-2], self[-1]
+            offset, step, monotonous = a.keyframes()
+
+            #                outpoint   end
+            # a ================|--------|
+            #          |--------|=============== b
+            #        start   inpoint
+            middle = b.start + (a.end - b.start) / 2
+
+            if monotonous:
+                # Cut by keyframe closest to the middle
+                frame = (middle - offset) // step
+                middle = frame * step + offset
+
+            a.outpoint = b.inpoint = middle
 
     def ffconcat_map(self) -> str:
         return '\n'.join([

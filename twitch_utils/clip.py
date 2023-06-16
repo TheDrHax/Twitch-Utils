@@ -2,8 +2,8 @@ import os
 import json
 
 from multiprocessing.pool import ThreadPool
-from subprocess import run, PIPE
-from typing import List
+from subprocess import Popen, run, PIPE
+from typing import List, Tuple
 
 from .utils import tmpfile
 
@@ -41,6 +41,33 @@ class Clip(object):
 
         self.inpoint = self.start
         self.outpoint = self.end
+
+    def keyframes(self) -> Tuple[float, float, bool]:
+        command = ['ffprobe',
+                   '-v', 'error',
+                   '-of', 'csv',
+                   '-show_frames', 
+                   '-select_streams', 'v:0',
+                   '-skip_frame', 'nokey',
+                   '-show_entries', 'frame=pts_time',
+                   self.path]
+
+        ff = Popen(command, stdout=PIPE)
+        
+        frames = []
+        for i, line in enumerate(ff.stdout):
+            frames.append(float(line.decode().split(',')[1]))
+
+            if i >= 2: break
+
+        ff.terminate()
+        ff.wait()
+
+        offset = frames[0]
+        step = frames[1] - offset
+        monotonous = (frames[2] - offset - step * 2) == 0
+
+        return offset, step, monotonous
 
     @property
     def duration(self):
