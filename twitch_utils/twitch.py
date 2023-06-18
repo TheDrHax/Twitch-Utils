@@ -15,22 +15,44 @@ except ImportError:
 # Source: https://raw.githubusercontent.com/TwitchRecover/TwitchRecover/main/domains.txt
 # TODO: Fetch updated list if possible
 VOD_DOMAINS = [
-    'vod-secure.twitch.tv',
+    'vod-metro.twitch.tv',
     'vod-metro.twitch.tv',
     'vod-pop-secure.twitch.tv',
+    'vod-pop-secure.twitch.tv',
+    'vod-secure.twitch.tv',
+    'vod-secure.twitch.tv',
+    'd1g1f25tn8m2e6.cloudfront.net',
+    'd1m7jfoe9zdc1j.cloudfront.net',
+    'd1mhjrowxxagfy.cloudfront.net',
+    'd1oca24q5dwo6d.cloudfront.net',
+    'd1w2poirtb3as9.cloudfront.net',
+    'd1xhnb4ptk05mw.cloudfront.net',
+    'd1ymi26ma8va5x.cloudfront.net',
+    'd2aba1wr3818hz.cloudfront.net',
+    'd2dylwb3shzel1.cloudfront.net',
     'd2e2de1etea730.cloudfront.net',
+    'd2nvs31859zcd8.cloudfront.net',
+    'd2um2qdswy1tb0.cloudfront.net',
+    'd2vjef5jvl6bfs.cloudfront.net',
+    'd2xmjdvx03ij56.cloudfront.net'
+    'd36nr0u3xmc4mm.cloudfront.net',
+    'd3aqoihi2n8ty8.cloudfront.net',
+    'd3c27h4odz752x.cloudfront.net',
+    'd3vd9lfkzbru3h.cloudfront.net',
+    'd6d4ismr40iw.cloudfront.net',
+    'd6tizftlrpuof.cloudfront.net',
+    'ddacn6pr5v0tl.cloudfront.net',
+    'dgeft87wbj63p.cloudfront.net',
     'dqrpb9wgowsf5.cloudfront.net',
     'ds0h3roq6wcgc.cloudfront.net',
-    'd2nvs31859zcd8.cloudfront.net',
-    'd2aba1wr3818hz.cloudfront.net',
-    'd3c27h4odz752x.cloudfront.net',
-    'dgeft87wbj63p.cloudfront.net',
-    'd1m7jfoe9zdc1j.cloudfront.net'
+    'dykkng5hnh52u.cloudfront.net',
 ]
 
 
 # Source: https://github.com/TwitchRecover/TwitchRecover/blob/
 # 48b32dccec752961b6402fff50eefcdc97ca27ff
+# Source: https://github.com/tanersb/TwitchRecover/blob/
+# bee8cc29fd44b00070c96c4c4c0d1b6ad811dcbd/recover.py#L14-L42
 # /src/TwitchRecover.Core/Compute.java#L51
 def vod_path(channel: str, stream_id: str, started_at: datetime) -> str:
     base = f'{channel.lower()}_{stream_id}_{int(started_at.timestamp())}'
