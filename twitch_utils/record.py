@@ -28,6 +28,7 @@ import os
 import sys
 import math
 import itertools
+from datetime import datetime
 from typing import Dict, Union, Any
 
 try:
@@ -61,13 +62,15 @@ class Stream(object):
                  threads: int = 1,
                  api: Union[TwitchAPI, None] = None,
                  start: int = 0,
-                 end: Union[int, None] = None):
+                 end: Union[int, None] = None,
+                 live: bool = False):
         self.url = url
         self.quality = quality
         self.threads = threads
         self.api = api
         self.start = start
         self.end = end
+        self.live = live
 
     def copy(self):
         return Stream(self.url, self.quality, self.threads,
@@ -113,6 +116,7 @@ class Stream(object):
         sl_proc = Popen(sl_cmd, **sl_kwargs)
 
         expected, downloaded = [-1] * 2
+        first_segment = True
 
         while True:
             line = sl_proc.stderr.readline()
@@ -133,7 +137,18 @@ class Stream(object):
                     expected = queued['segment']
             elif complete:
                 segment = complete['segment']
-                print(f'Downloaded segment {segment} out of {expected}')
+
+                if self.live and first_segment:
+                    # Log precise timings to leave some traces for manual
+                    # checks of recording's consistency
+                    # For example: If the following calculation
+                    #       (ts2 - ts1) - (inpoint2 - inpoint1)
+                    # is > 0, we can assume that Twitch has lost some segments
+                    # and the stream has become shorter by this amount.
+                    ts = datetime.now().timestamp()
+                    inpoint = Clip(dest).inpoint
+                    print(f'Clip {dest} started at {ts} with offset {inpoint}')
+                    first_segment = False
 
                 if downloaded == -1 or downloaded + 1 == segment:
                     downloaded = segment
@@ -205,7 +220,8 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
     stream = Stream(f'https://twitch.tv/{channel_name}',
                     api=api,
                     quality=quality,
-                    threads=threads)
+                    threads=threads,
+                    live=True)
 
     if not vod_url:
         vod_url = f'https://twitch.tv/videos/{vod_id}'
