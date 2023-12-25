@@ -16,10 +16,7 @@ except ImportError:
 # TODO: Fetch updated list if possible
 VOD_DOMAINS = [
     'vod-metro.twitch.tv',
-    'vod-metro.twitch.tv',
     'vod-pop-secure.twitch.tv',
-    'vod-pop-secure.twitch.tv',
-    'vod-secure.twitch.tv',
     'vod-secure.twitch.tv',
     'd1g1f25tn8m2e6.cloudfront.net',
     'd1m7jfoe9zdc1j.cloudfront.net',
@@ -34,7 +31,7 @@ VOD_DOMAINS = [
     'd2nvs31859zcd8.cloudfront.net',
     'd2um2qdswy1tb0.cloudfront.net',
     'd2vjef5jvl6bfs.cloudfront.net',
-    'd2xmjdvx03ij56.cloudfront.net'
+    'd2xmjdvx03ij56.cloudfront.net',
     'd36nr0u3xmc4mm.cloudfront.net',
     'd3aqoihi2n8ty8.cloudfront.net',
     'd3c27h4odz752x.cloudfront.net',
@@ -179,7 +176,8 @@ class TwitchAPI:
 
         for domain in domains:
             url = f'https://{domain}{path}'
-            res = self.session.head(url)
+            res = self.session.head(url, timeout=5)
+            print(f'[{res.status_code}] {url}')
 
             if res.status_code == 200:
                 return url
