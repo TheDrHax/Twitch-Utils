@@ -258,13 +258,17 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
         if parts == 1:
             print('Starting download of VOD')
 
-            vod_proc = vod.download_async(generate_filename(vod_id, parts))
+            vod_result = -1
+
+            while vod_result != 0:
+                if vod_result > 0:
+                    print('WARN: Could not download VOD (exit code '
+                          f'{vod_result}), retrying in 60 seconds...')
+                    sleep(60)
+
+                vod_result = vod.download(generate_filename(vod_id, parts))
+
             parts += 1
-
-            vod_proc.join()
-            vod_result = vod_proc.exitcode
-            vod_proc.close()
-
             print(f'Finished download of VOD (exit code: {vod_result})')
 
         first_vod = parts == 2
