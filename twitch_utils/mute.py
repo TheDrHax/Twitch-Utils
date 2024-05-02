@@ -11,9 +11,10 @@ Timestamp format: [[HH:]MM:]SS[.MMM]
 Time range format: START~END
 
 Options:
-  -o <file>   Name of the output file.
-  --inverse   Remove voice instead of music.
-  --pass <n>  Number of passes for each time range. [default: 1]
+  -o <file>    Name of the output file.
+  --inverse    Remove voice instead of music.
+  --pass <n>   Number of passes for each time range. [default: 1]
+  --chunk <s>  Split ranges into smaller chunks (in seconds). [default: 300]
 """
 
 import os
@@ -50,15 +51,16 @@ def main(argv=None):
 
     loader = AudioAdapter.default()
     sample_rate = 44100
+    chunk_size = float(args['--chunk'])
     separator = Separator('spleeter:2stems')
 
     new_ranges = []
     for r in ranges:
         start, end = r
         
-        while end - start > 300:
-            new_ranges.append((start, start + 300))
-            start += 300
+        while end - start > chunk_size:
+            new_ranges.append((start, start + chunk_size))
+            start += chunk_size
         
         new_ranges.append((start, end))
 
