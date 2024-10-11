@@ -259,6 +259,7 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
             print('Starting download of VOD')
 
             vod_result = -1
+            filename = generate_filename(vod_id, parts)
 
             while vod_result != 0:
                 if vod_result > 0:
@@ -266,7 +267,13 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
                           f'{vod_result}), retrying in 60 seconds...')
                     sleep(60)
 
-                vod_result = vod.download(generate_filename(vod_id, parts))
+                vod_result = vod.download(filename)
+
+                if vod_result == 0:
+                    try:
+                        Clip(filename)
+                    except Exception:
+                        vod_result = 4095
 
             parts += 1
             print(f'Finished download of VOD (exit code: {vod_result})')
