@@ -162,6 +162,9 @@ class Clip(object):
             if not result:
                 continue
 
-            yield result
+            try:
+                yield result
+            except GeneratorExit:
+                break
 
         pool.close()
