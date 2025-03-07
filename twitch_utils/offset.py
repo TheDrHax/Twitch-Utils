@@ -88,6 +88,8 @@ def find_offset(c1: Clip, c2: Clip,
 
     print(f'pos | offset | score | mul', file=sys.stderr)
 
+    c1 = c1.slice(output_options=['-vn', '-ar', str(ar)])[0]
+
     for position, chunk in c2.slice_generator(
             chunk_size, start, end, reverse,
             output_options=['-vn', '-ar', str(ar)]):
@@ -149,8 +151,7 @@ def main(argv=None):
     if c1.duration < template_start or template_duration <= 0:
         raise Exception('Template is empty (check start offset and duration)')
 
-    c1 = c1.slice(template_start, template_duration + template_start,
-                  output_options=['-vn', '-ar', str(ar)])[0]
+    c1 = c1.slice(template_start, template_duration + template_start)[0]
 
     c2 = Clip(args['FILE2'])
 
