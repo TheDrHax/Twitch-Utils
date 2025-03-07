@@ -82,13 +82,17 @@ class Clip(object):
         if self._tmpfile:
             os.unlink(self._tmpfile)
 
-    def slice(self, start: float, duration: float, chunks: int = 1,
+    def slice(self, start: float = 0, duration: float = None, chunks: int = 1,
               output_options: List[str] = []):
         """Split this Clip into one or multiple temporary Clips.
 
         By default splits only the audio track, outputting chunks
         in WAV format.
         """
+
+        if not duration:
+            duration = self.duration
+
         command = (f'ffmpeg -y -v error -ss {start}').split()
         command += ['-i', self.path]
 
