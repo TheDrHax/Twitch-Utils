@@ -56,6 +56,7 @@ DEBUG = False
 class Stream(object):
     PARSE_QUEUED = compile('{} Adding segment {segment:d} to queue{}')
     PARSE_COMPLETE = compile('{} Segment {segment:d} complete{}')
+    PARSE_FAILED = compile('{} Download of segment {segment:d} failed{}')
 
     def __init__(self, url: str,
                  quality: str = 'best',
@@ -129,8 +130,14 @@ class Stream(object):
 
             queued = Stream.PARSE_QUEUED.parse(line)
             complete = Stream.PARSE_COMPLETE.parse(line)
+            failed = Stream.PARSE_FAILED.parse(line)
 
-            if queued:
+            if failed:
+                print(f'ERR: {line}')
+                sl_proc.terminate()
+                exit_code = 1
+                break
+            elif queued:
                 segment = queued['segment']
 
                 if queued['segment'] > expected:
@@ -157,11 +164,6 @@ class Stream(object):
                     sl_proc.terminate()
                     exit_code = 1
                     break
-            elif 'Thread-TwitchHLSStreamWriter' in line:
-                print(f'ERR: {line}')
-                sl_proc.terminate()
-                exit_code = 1
-                break
             elif 'No playable streams found' in line:
                 print('WARN: Stream appears to be offline')
                 sl_proc.terminate()
