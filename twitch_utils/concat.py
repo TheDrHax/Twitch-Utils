@@ -39,12 +39,19 @@ from .clip import Clip
 from .utils import tmpfile
 
 
-class TimelineMissingRangeError(Exception):
+class MissingRangeError(Exception):
     def __init__(self, start, end):
         super().__init__(f'Range {start}~{end} is missing')
-
         self.start = start
         self.end = end
+        self.range = (start, end)
+
+
+class MissingRangesError(Exception):
+    def __init__(self, ranges):
+        super().__init__('Timeline incomplete, missing: ' +
+                         ', '.join(f'{r[0]}~{r[1]}' for r in ranges))
+        self.ranges = ranges
 
 
 class Timeline(list):
@@ -59,11 +66,12 @@ class Timeline(list):
                 if not found or found.duration < clip.duration:
                     found = clip
 
-            if clip.start > pos and not end:
-                end = clip.start
+            if clip.start > pos:
+                if not end or end > clip.start:
+                    end = clip.start
 
         if not found:
-            raise TimelineMissingRangeError(pos - abs_start, end - abs_start)
+            raise MissingRangeError(pos - abs_start, end - abs_start)
 
         return found
 
@@ -74,8 +82,17 @@ class Timeline(list):
         self.end = max([clip.end for clip in clips])
 
         pos = self.start
+        missing = []
+
         while pos < self.end:
-            self.append(self.find_clip(clips, pos))
+            try:
+                clip = self.find_clip(clips, pos)
+            except MissingRangeError as ex:
+                missing.append(ex.range)
+                pos = self.start + ex.end + 1
+                continue
+
+            self.append(clip)
             pos = self[-1].end
 
             if len(self) < 2:
@@ -96,6 +113,9 @@ class Timeline(list):
                 middle = frame * step + offset
 
             a.outpoint = b.inpoint = middle
+
+        if len(missing) > 0:
+            raise MissingRangesError(missing)
 
     def ffconcat_map(self) -> str:
         return '\n'.join([
@@ -196,10 +216,8 @@ def main(argv=None):
 
     try:
         timeline = Timeline(clips)
-    except TimelineMissingRangeError as ex:
-        print(f'ERROR: Range {int(ex.start)}~{int(ex.end)} is not present in '
-              'provided files',
-              file=sys.stderr)
+    except MissingRangesError as ex:
+        print(f'ERROR: {ex}', file=sys.stderr)
         sys.exit(1)
 
     sys.exit(timeline.render(args['--output'],

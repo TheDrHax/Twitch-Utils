@@ -46,7 +46,7 @@ from subprocess import Popen, PIPE
 from multiprocessing import Process
 
 from .clip import Clip
-from .concat import Timeline, TimelineMissingRangeError
+from .concat import Timeline, MissingRangesError
 from .twitch import TwitchAPI
 
 
@@ -217,7 +217,7 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
            api: Union[TwitchAPI, None] = None,
            stream_obj: Union[Dict[str, Any], None] = None) -> int:
     stream_result = -1
-    missing_part = None
+    missing_parts = None
 
     stream = Stream(f'https://twitch.tv/{channel_name}',
                     api=api,
@@ -282,7 +282,7 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
 
         first_vod = parts == 2
 
-        while missing_part or first_vod or resumed:
+        while missing_parts or first_vod or resumed:
             # Avoid infinite loops
             resumed = False
             first_vod = False
@@ -292,25 +292,25 @@ def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
             try:
                 create_timeline(vod_id, parts)
                 print('Timeline is complete, good!')
-                missing_part = None
+                missing_parts = None
                 break
-            except TimelineMissingRangeError as ex:
-                missing_part = (ex.start, ex.end)
-                print(f'WARN: Missing segment {ex.start}~{ex.end}, '
-                      'retrying in 120 seconds...')
+            except MissingRangesError as ex:
+                missing_parts = ex.ranges
+                print(f'WARN: {ex}')
+                print('Retrying in 120 seconds...')
                 sleep(120)
 
-            print(f'Downloading segment {missing_part[0]}~{missing_part[1]}')
+            for (start, end) in missing_parts:
+                print(f'Downloading segment {start}~{end}')
+                segment = vod.copy()
+                segment.start = max(0, start - 60)
+                segment.end = end + 60
 
-            segment = vod.copy()
-            segment.start = max(0, missing_part[0] - 60)
-            segment.end = missing_part[1] + 60
+                vod_proc = segment.download_async(generate_filename(vod_id, parts))
+                parts += 1
 
-            vod_proc = segment.download_async(generate_filename(vod_id, parts))
-            parts += 1
-
-            vod_proc.join()
-            vod_proc.close()
+                vod_proc.join()
+                vod_proc.close()
 
         stream_proc.join()
         stream_result = stream_proc.exitcode
@@ -395,7 +395,7 @@ def main(argv=None):
 
     try:
         t = create_timeline(vod, parts)
-    except TimelineMissingRangeError as ex:
+    except MissingRangesError as ex:
         print(ex)
         print('ERR: Unable to concatenate segments!')
         sys.exit(1)
