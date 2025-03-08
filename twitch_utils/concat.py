@@ -22,6 +22,8 @@ Options:
                                   output file name is specified. [default: mpegts]
   -o <name>, --output=<name>      Name of the output file. Use '-' to output
                                   directly to stdout.
+  --min-overlap=<t>               Minimal safe overlap of clips in seconds
+                                  [default: 10].
 
 MP4 options:
   --faststart   Move moov atom to the front of the file. Requires second pass
@@ -56,26 +58,43 @@ class MissingRangesError(Exception):
 
 class Timeline(list):
     @staticmethod
-    def find_clip(clips: list, pos: float) -> Clip:
+    def find_clip(clips: list, pos: float) -> list[Clip]:
         abs_start = clips[0].start
         end = None
-        found = None
+        found = []
 
         for clip in clips:
             if clip.start <= pos and clip.end > pos:
-                if not found or found.duration < clip.duration:
-                    found = clip
+                found.append(clip)
 
             if clip.start > pos:
                 if not end or end > clip.start:
                     end = clip.start
 
-        if not found:
+        if len(found) == 0:
             raise MissingRangeError(pos - abs_start, end - abs_start)
 
         return found
 
-    def __init__(self, clips: list):
+    @staticmethod
+    def overlap(a: Clip, b: Clip) -> tuple[float, float]:
+        offset, step, monotonous = a.keyframes()
+
+        #                outpoint   end
+        # a ================|--------|
+        #          |--------|=============== b
+        #        start   inpoint
+        overlap = a.end - b.start
+        middle = b.start + overlap / 2
+
+        if monotonous:
+            # Cut by keyframe closest to the middle
+            frame = (middle - offset) // step
+            middle = frame * step + offset
+        
+        return overlap, middle
+
+    def __init__(self, clips: list, min_overlap: float = 10):
         clips.sort(key=lambda k: k.start)
 
         self.start = min([clip.start for clip in clips])
@@ -86,33 +105,36 @@ class Timeline(list):
 
         while pos < self.end:
             try:
-                clip = self.find_clip(clips, pos)
+                candidates = self.find_clip(clips, pos)
             except MissingRangeError as ex:
                 missing.append(ex.range)
-                pos = self.start + ex.end + 1
+                pos = self.start + ex.end
                 continue
 
-            self.append(clip)
-            pos = self[-1].end
-
-            if len(self) < 2:
+            if len(self) == 0:
+                clip = max(candidates, key=lambda c: c.duration)
+                self.append(clip)
+                pos = clip.end
                 continue
 
-            a, b = self[-2], self[-1]
-            offset, step, monotonous = a.keyframes()
+            a = self[-1]
+            overlaps = list(map(lambda x: (x, *self.overlap(a, x)), candidates))
 
-            #                outpoint   end
-            # a ================|--------|
-            #          |--------|=============== b
-            #        start   inpoint
-            middle = b.start + (a.end - b.start) / 2
+            max_overlap = max(overlaps, key=lambda x: x[1])[1]
 
-            if monotonous:
-                # Cut by keyframe closest to the middle
-                frame = (middle - offset) // step
-                middle = frame * step + offset
+            if max_overlap >= min_overlap:
+                overlaps = filter(lambda x: x[1] >= min_overlap, overlaps)
+                b, overlap, middle = min(overlaps, key=lambda x: x[1])
+            else:
+                b, overlap, middle = max(overlaps, key=lambda x: x[1])
 
             a.outpoint = b.inpoint = middle
+
+            self.append(b)
+            pos = b.end
+
+            if overlap >= 0 and overlap < min_overlap:
+                missing.append((b.start, a.end))
 
         if len(missing) > 0:
             raise MissingRangesError(missing)
@@ -215,7 +237,7 @@ def main(argv=None):
                   file=sys.stderr)
 
     try:
-        timeline = Timeline(clips)
+        timeline = Timeline(clips, min_overlap=float(args['--min-overlap']))
     except MissingRangesError as ex:
         print(f'ERROR: {ex}', file=sys.stderr)
         sys.exit(1)
