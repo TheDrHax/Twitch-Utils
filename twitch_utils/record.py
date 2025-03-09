@@ -345,6 +345,27 @@ class RepairThread(Thread):
 
         print(f'Finished download of VOD (exit code: {result})')
 
+    @staticmethod
+    def optimize_missing(ranges: list[tuple]) -> list[tuple]:
+        ranges = list(ranges)
+        ranges.sort(key=lambda x: x[0])
+
+        optimized = []
+
+        for i in range(len(ranges)):
+            if i == 0:
+                optimized.append(ranges[i])
+                continue
+
+            (a1, a2), (b1, b2) = optimized[-1], ranges[i]
+
+            if (a2 - a1 + b2 - b1) > (b1 - a2):
+                optimized[-1] = (a1, b2)
+            else:
+                optimized.append(ranges[i])
+
+        return optimized
+
     def run(self):
         self.session.recording.wait()
 
@@ -366,10 +387,12 @@ class RepairThread(Thread):
                     missing_parts = None
                     break
                 except MissingRangesError as ex:
-                    missing_parts = ex.ranges
+                    missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')
                     print('Retrying in 120 seconds...')
-                    sleep(120)
+                    if self.session.dirty.wait(120):
+                        print('Wait interrupted, rechecking')
+                        break
 
                 for (start, end) in missing_parts:
                     print(f'Downloading segment {start}~{end}')
