@@ -27,9 +27,10 @@ Options:
 import os
 import sys
 import math
-import itertools
+from itertools import count
 from datetime import datetime
-from typing import Dict, Union, Any
+from dataclasses import dataclass, field
+from typing import Callable, Dict, Union
 
 try:
     import streamlink
@@ -41,13 +42,13 @@ except ImportError:
     sys.exit(1)
 
 from time import sleep
+from threading import Lock, Thread, Event
 from docopt import docopt
 from subprocess import Popen, PIPE
-from multiprocessing import Process
 
 from .clip import Clip
 from .concat import Timeline, MissingRangesError
-from .twitch import TwitchAPI
+from .twitch import TwitchAPI, VodException
 
 
 DEBUG = False
@@ -73,6 +74,9 @@ class Stream(object):
         self.start = start
         self.end = end
         self.live = live
+
+        self.result = -1
+        self.started = Event()
 
     def copy(self):
         return Stream(self.url, self.quality, self.threads,
@@ -146,6 +150,7 @@ class Stream(object):
                     expected = queued['segment']
             elif complete:
                 segment = complete['segment']
+                self.started.set()
 
                 if self.live and first_segment:
                     # Log precise timings to leave some traces for manual
@@ -186,11 +191,14 @@ class Stream(object):
         return exit_code
 
     def _target_download(self, *args):
-        result = self.download(*args)
-        sys.exit(result)
+        self.result = None
+        self.result = self.download(*args)
 
-    def download_async(self, dest: str) -> Process:
-        p = Process(target=self._target_download, args=(dest,))
+        # Unlock waiting threads if exit was early
+        self.started.set()
+
+    def download_async(self, dest: str) -> Thread:
+        p = Thread(target=self._target_download, args=(dest,))
         p.start()
         return p
 
@@ -213,123 +221,168 @@ def create_timeline(vod_id, parts):
     return Timeline(clips)
 
 
-def record(channel_name: str, vod_id: str, vod_url: Union[str, None] = None,
-           quality: str = 'best', threads: int = 4,
-           parts: int = 0,
-           api: Union[TwitchAPI, None] = None,
-           stream_obj: Union[Dict[str, Any], None] = None) -> int:
-    stream_result = -1
-    missing_parts = None
+class Counter:
+    def __init__(self, value = 0):
+        self._value = value
+        self.lock = Lock()
 
-    stream = Stream(f'https://twitch.tv/{channel_name}',
-                    api=api,
-                    quality=quality,
-                    threads=threads,
-                    live=True)
+    def set(self, value):
+        with self.lock:
+            self._value = value
+            return self._value
 
-    if not vod_url:
-        vod_url = f'https://twitch.tv/videos/{vod_id}'
+    def inc(self):
+        with self.lock:
+            self._value += 1
+            return self._value
+    
+    def dec(self):
+        with self.lock:
+            self._value -= 1
+            return self._value
 
-    vod = Stream(vod_url,
-                 api=api,
-                 quality=quality,
-                 threads=1)
+    @property
+    def value(self):
+        return self._value
 
-    while stream_result != 0:
-        resumed = parts > 0
 
-        if resumed:
-            print('Resuming download of live stream')
-        else:
-            print('Starting download of live stream')
+@dataclass
+class RecordingSession:
+    vod: str
+    api: Union[TwitchAPI, None] = None
+    counter: Counter = field(default_factory=Counter)
+    recording: Event = field(default_factory=Event)
+    dirty: Event = field(default_factory=Event)
 
-        stream_proc = stream.download_async(generate_filename(vod_id, parts))
-        parts += 1
+    def next_file(self) -> str:
+        return generate_filename(self.vod, self.counter.inc() - 1)
 
-        should_break = False
-        for i in range(60):
-            if stream_proc.exitcode == 2:
-                if parts == 1:
+class RecordThread(Thread):
+    def __init__(self, session: RecordingSession,
+                 channel_name: str,
+                 quality: str = 'best', threads: int = 4,
+                 is_online: Callable = lambda: True):
+        super().__init__()
+
+        self.session = session
+        self.stream = Stream(f'https://twitch.tv/{channel_name}',
+                             api=session.api,
+                             quality=quality,
+                             threads=threads,
+                             live=True)
+        self.is_online = is_online
+
+    def run(self):
+        result = -1
+
+        while result != 0:
+            filename = self.session.next_file()
+            proc = self.stream.download_async(filename)
+
+            # Wait for possible early exit
+            self.stream.started.wait()
+
+            if self.stream.result == 2:
+                if self.session.counter.value == 1:
                     sys.exit(1)
                 else:
-                    should_break = True
                     break
-            sleep(1)
 
-        if should_break:
-            break
+            self.session.recording.set()
+            self.session.dirty.set()
 
-        if parts == 1:
+            proc.join()
+            result = self.stream.result
+
+            print(f'Finished download of live stream (exit code: {result})')
+
+            if result != 0:
+                print('Resuming in 60 seconds...')
+                sleep(60)
+
+                if not self.is_online():
+                    print('Stream ended')
+                    break
+
+        self.session.recording.clear()
+        self.session.dirty.set()
+
+
+class RepairThread(Thread):
+    def __init__(self, session: RecordingSession,
+                 vod_id: str, vod_url: Union[str, None] = None,
+                 quality: str = 'best'):
+        super().__init__()
+
+        self.session = session
+
+        if not vod_url:
+            vod_url = f'https://twitch.tv/videos/{vod_id}'
+
+        self.stream = Stream(vod_url,
+                             api=session.api,
+                             quality=quality,
+                             threads=1)
+        self.vod = vod_id
+
+    def first_vod(self):
+        result = -1
+        filename = self.session.next_file()
+
+        while result != 0:
+            if result > 0:
+                print('WARN: Could not download VOD (exit code '
+                        f'{result}), retrying in 60 seconds...')
+                sleep(60)
+
+            result = self.stream.download(filename)
+
+            if result == 0:
+                try:
+                    Clip(filename)
+                except Exception:
+                    result = 4095
+
+        print(f'Finished download of VOD (exit code: {result})')
+
+    def run(self):
+        self.session.recording.wait()
+
+        missing_parts = None
+
+        # Retry first VOD at least until it is readable
+        if self.session.counter.value == 1:
             print('Starting download of VOD')
+            self.first_vod()
 
-            vod_result = -1
-            filename = generate_filename(vod_id, parts)
+        while self.session.recording.is_set():
+            while missing_parts or self.session.dirty.is_set():
+                self.session.dirty.clear()
+                print('Testing the possibility of concatenation')
 
-            while vod_result != 0:
-                if vod_result > 0:
-                    print('WARN: Could not download VOD (exit code '
-                          f'{vod_result}), retrying in 60 seconds...')
-                    sleep(60)
+                try:
+                    create_timeline(self.vod, self.session.counter.value)
+                    print('Timeline is complete, good!')
+                    missing_parts = None
+                    break
+                except MissingRangesError as ex:
+                    missing_parts = ex.ranges
+                    print(f'WARN: {ex}')
+                    print('Retrying in 120 seconds...')
+                    sleep(120)
 
-                vod_result = vod.download(filename)
+                for (start, end) in missing_parts:
+                    print(f'Downloading segment {start}~{end}')
+                    segment = self.stream.copy()
+                    segment.start = max(0, start - 60)
+                    segment.end = end + 60
 
-                if vod_result == 0:
-                    try:
-                        Clip(filename)
-                    except Exception:
-                        vod_result = 4095
+                    filename = self.session.next_file()
+                    segment.download(filename)
 
-            parts += 1
-            print(f'Finished download of VOD (exit code: {vod_result})')
+            self.session.dirty.wait()
 
-        first_vod = parts == 2
-
-        while missing_parts or first_vod or resumed:
-            # Avoid infinite loops
-            resumed = False
-            first_vod = False
-
-            print('Testing the possibility of concatenation')
-
-            try:
-                create_timeline(vod_id, parts)
-                print('Timeline is complete, good!')
-                missing_parts = None
-                break
-            except MissingRangesError as ex:
-                missing_parts = ex.ranges
-                print(f'WARN: {ex}')
-                print('Retrying in 120 seconds...')
-                sleep(120)
-
-            for (start, end) in missing_parts:
-                print(f'Downloading segment {start}~{end}')
-                segment = vod.copy()
-                segment.start = max(0, start - 60)
-                segment.end = end + 60
-
-                vod_proc = segment.download_async(generate_filename(vod_id, parts))
-                parts += 1
-
-                vod_proc.join()
-                vod_proc.close()
-
-        stream_proc.join()
-        stream_result = stream_proc.exitcode
-        stream_proc.close()
-
-        print(f'Finished download of live stream (exit code: {stream_result})')
-
-        if stream_result != 0:
-            print('Resuming in 60 seconds...')
-            sleep(60)
-
-            if api and stream_obj and not api.is_still_live(stream_obj):
-                print('Stream ended')
-                break
-
-    print('All parts are downloaded!')
-    return parts
+        print('All parts are downloaded!')
 
 
 def main(argv=None):
@@ -367,7 +420,7 @@ def main(argv=None):
         if not vod:
             vod = api.get_active_vod(stream)
             vod_url = None
-    except Exception:
+    except VodException:
         print('VOD is not listed, attempting to find the playlist')
         vod_url = api.vod_probe(stream)
         vod = stream['id']
@@ -382,18 +435,33 @@ def main(argv=None):
         print('ERR: Unable to find VOD')
         sys.exit(1)
 
-    parts = 0
+    session = RecordingSession(vod, api)
 
-    for i in itertools.count():
-        if os.path.exists(generate_filename(vod, i)):
-            if i == 0:
-                print('Found previous segments, resuming download')
-
-            parts = i + 1
-        else:
+    for i in count():
+        filename = generate_filename(vod, i)
+        if not os.path.exists(filename):
+            session.counter.set(i - 1)
             break
 
-    parts = record(channel, vod, vod_url, args['--quality'], args['-j'], parts, api, stream)
+    if session.counter.value > 0:
+        print('Found previous segments, resuming download')
+
+    def is_online():
+        if api and stream:
+            return api.is_still_live(stream)
+        else:
+            return True
+
+    record = RecordThread(session, channel, args['--quality'], args['-j'], is_online)
+    repair = RepairThread(session, vod, vod_url, args['--quality'])
+
+    record.start()
+    repair.start()
+
+    record.join()
+    repair.join()
+
+    parts = session.counter.value
 
     try:
         t = create_timeline(vod, parts)

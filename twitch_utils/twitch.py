@@ -57,6 +57,39 @@ def vod_path(channel: str, stream_id: str, started_at: datetime) -> str:
     return f'/{hash}_{base}/chunked/index-dvr.m3u8'
 
 
+class TwitchException(Exception):
+    pass
+
+
+class ChannelNotFoundException(TwitchException):
+    def __init__(self):
+        super().__init__('Channel not found')
+
+
+class StreamOfflineException(TwitchException):
+    def __init__(self):
+        super().__init__('Stream appears to be offline')
+
+
+class VodException(TwitchException):
+    pass
+
+
+class VodNotFoundException(VodException):
+    def __init__(self):
+        super().__init__('VOD not found')
+
+
+class GqlException(TwitchException):
+    def __init__(self, text):
+        super().__init__(text)
+
+
+class VodTypeMismatchException(VodException):
+    def __init__(self, expected, actual):
+        super().__init__(f'Stream type is "{actual}" instead of "{expected}"')
+
+
 class TwitchAPI:
     def __init__(self, headers: Dict[str, str] = {}):
         self.session = Session()
@@ -76,7 +109,7 @@ class TwitchAPI:
         if res.status_code == 200:
             return res.json()
         else:
-            raise Exception(res.text)
+            raise GqlException(res.text)
 
     def get_headers(self) -> Dict[str, Union[str, bytes]]:
         return dict(self.session.headers)
@@ -103,12 +136,12 @@ class TwitchAPI:
         user: Dict[str, Any] = res['data']['user']
 
         if user is None:
-            raise Exception('Channel not found')
+            raise ChannelNotFoundException
 
         stream: Dict[str, Any] = user['stream']
 
         if stream is None:
-            raise Exception('Stream appears to be offline')
+            raise StreamOfflineException
         
         return stream
 
@@ -116,13 +149,12 @@ class TwitchAPI:
         """Returns ID of VOD if stream is live."""
 
         if stream['type'] != stream_type:
-            raise Exception(f'Stream type is "{stream["type"]}" '
-                            f'instead of "{stream_type}"')
+            raise VodTypeMismatchException(stream_type, stream['type'])
 
         vod: Dict[str, Any] = stream['archiveVideo']
 
-        if vod is None:
-            raise Exception('VOD not found')
+        if not vod:
+            raise VodNotFoundException
 
         return vod['id']
 
@@ -182,11 +214,11 @@ class TwitchAPI:
             if res.status_code == 200:
                 return url
 
-        raise Exception('VOD not found')
+        raise VodNotFoundException
 
     def is_still_live(self, stream: Dict[str, Any]) -> bool:
         try:
             channel = stream['broadcaster']['login']
             return self.get_stream(channel)['id'] == stream['id']
-        except Exception:
+        except StreamOfflineException:
             return False
