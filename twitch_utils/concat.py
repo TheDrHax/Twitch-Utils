@@ -78,8 +78,6 @@ class Timeline(list):
 
     @staticmethod
     def overlap(a: Clip, b: Clip) -> tuple[float, float]:
-        offset, step, monotonous = a.keyframes()
-
         #                outpoint   end
         # a ================|--------|
         #          |--------|=============== b
@@ -87,11 +85,6 @@ class Timeline(list):
         overlap = a.end - b.start
         middle = b.start + overlap / 2
 
-        if monotonous:
-            # Cut by keyframe closest to the middle
-            frame = (middle - offset) // step
-            middle = frame * step + offset
-        
         return overlap, middle
 
     def __init__(self, clips: list, min_overlap: float = 10):
@@ -101,6 +94,7 @@ class Timeline(list):
         self.end = max([clip.end for clip in clips])
 
         pos = self.start
+        offset, step, monotonous = clips[0].keyframes()
         missing = []
 
         while pos < self.end:
@@ -127,6 +121,11 @@ class Timeline(list):
                 b, overlap, middle = min(overlaps, key=lambda x: x[1])
             else:
                 b, overlap, middle = max(overlaps, key=lambda x: x[1])
+
+            if monotonous:
+                # Cut by keyframe closest to the middle
+                frame = (middle - offset) // step
+                middle = frame * step + offset
 
             a.outpoint = b.inpoint = middle
 
