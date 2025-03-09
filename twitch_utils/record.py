@@ -57,6 +57,7 @@ class Stream(object):
     PARSE_QUEUED = compile('{} Adding segment {segment:d} to queue{}')
     PARSE_COMPLETE = compile('{} Segment {segment:d} complete{}')
     PARSE_FAILED = compile('{} Download of segment {segment:d} failed{}')
+    PARSE_DISCARDED = compile('{} Discarding segment {segment:d}{}')
 
     def __init__(self, url: str,
                  quality: str = 'best',
@@ -131,8 +132,9 @@ class Stream(object):
             queued = Stream.PARSE_QUEUED.parse(line)
             complete = Stream.PARSE_COMPLETE.parse(line)
             failed = Stream.PARSE_FAILED.parse(line)
+            discarded = Stream.PARSE_DISCARDED.parse(line)
 
-            if failed:
+            if failed or (not first_segment and discarded):
                 print(f'ERR: {line}')
                 sl_proc.terminate()
                 exit_code = 1
