@@ -463,7 +463,7 @@ def main(argv=None):
     for i in count():
         filename = generate_filename(vod, i)
         if not os.path.exists(filename):
-            session.counter.set(i - 1)
+            session.counter.set(i)
             break
 
     if session.counter.value > 0:
