@@ -150,7 +150,6 @@ class Stream(object):
                     expected = queued['segment']
             elif complete:
                 segment = complete['segment']
-                self.started.set()
 
                 if self.live and first_segment:
                     # Log precise timings to leave some traces for manual
@@ -163,6 +162,8 @@ class Stream(object):
                     inpoint = Clip(dest).inpoint
                     print(f'Clip {dest} started at {ts} with offset {inpoint}')
                     first_segment = False
+
+                self.started.set()
 
                 if downloaded == -1 or downloaded + 1 == segment:
                     downloaded = segment
@@ -191,6 +192,8 @@ class Stream(object):
         return exit_code
 
     def _target_download(self, *args):
+        self.started.clear()
+
         self.result = None
         self.result = self.download(*args)
 
@@ -256,6 +259,7 @@ class RecordingSession:
 
     def next_file(self) -> str:
         return generate_filename(self.vod, self.counter.inc() - 1)
+
 
 class RecordThread(Thread):
     def __init__(self, session: RecordingSession,
