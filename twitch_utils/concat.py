@@ -50,16 +50,17 @@ class MissingRangeError(Exception):
 
 
 class MissingRangesError(Exception):
-    def __init__(self, ranges):
+    def __init__(self, ranges, start, end):
         super().__init__('Timeline incomplete, missing: ' +
                          ', '.join(f'{r[0]}~{r[1]}' for r in ranges))
         self.ranges = ranges
+        self.start = start
+        self.end = end
 
 
 class Timeline(list):
     @staticmethod
     def find_clip(clips: list, pos: float) -> list[Clip]:
-        abs_start = clips[0].start
         end = None
         found = []
 
@@ -72,7 +73,7 @@ class Timeline(list):
                     end = clip.start
 
         if len(found) == 0:
-            raise MissingRangeError(pos - abs_start, end - abs_start)
+            raise MissingRangeError(pos, end)
 
         return found
 
@@ -102,7 +103,7 @@ class Timeline(list):
                 candidates = self.find_clip(clips, pos)
             except MissingRangeError as ex:
                 missing.append(ex.range)
-                pos = self.start + ex.end
+                pos = ex.end
                 continue
 
             if len(self) == 0:
@@ -136,7 +137,7 @@ class Timeline(list):
                 missing.append((b.start, a.end))
 
         if len(missing) > 0:
-            raise MissingRangesError(missing)
+            raise MissingRangesError(missing, self.start, self.end)
 
     def ffconcat_map(self) -> str:
         return '\n'.join([

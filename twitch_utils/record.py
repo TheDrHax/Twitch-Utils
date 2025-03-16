@@ -30,7 +30,7 @@ import math
 from itertools import count
 from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Union, Tuple
 
 try:
     import streamlink
@@ -77,6 +77,7 @@ class Stream(object):
 
         self.result = -1
         self.started = Event()
+        self._stream_url = None
 
     def copy(self):
         return Stream(self.url, self.quality, self.threads,
@@ -203,6 +204,26 @@ class Stream(object):
         p = Thread(target=self._target_download, args=(dest,))
         p.start()
         return p
+
+    def stream_url(self) -> str:
+        if not self.live and self._stream_url:
+            return self._stream_url
+
+        sl_cmd = ['streamlink'] + self._args() + ['--stream-url']
+        sl_env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
+        sl_kwargs = {'stdout': None,
+                     'stderr': PIPE,
+                     'text': True,
+                     'env': sl_env}
+        sl_proc = Popen(sl_cmd, **sl_kwargs)
+        sl_proc.wait()
+
+        url = sl_proc.stderr.readline().strip()
+        self._stream_url = url
+        return url
+
+    def clip(self) -> Clip:
+        return Clip(self.stream_url())
 
 
 def generate_filename(vod_id, part):
@@ -369,6 +390,21 @@ class RepairThread(Thread):
 
         return optimized
 
+    def await_vod(self, pos: float) -> Tuple[bool, float]:
+        max_pos = 0
+
+        while pos > max_pos:
+            print('Waiting 60 seconds for VOD to catch up')
+
+            if self.session.dirty.wait(60):
+                print('Wait interrupted, rechecking')
+                return False, max_pos
+
+            vod = self.stream.clip()
+            max_pos = vod.start + vod.duration
+
+        return True, max_pos
+
     def run(self):
         self.session.recording.wait()
 
@@ -390,18 +426,32 @@ class RepairThread(Thread):
                     missing_parts = None
                     break
                 except MissingRangesError as ex:
+                    offset = ex.start
                     missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')
-                    print('Retrying in 120 seconds...')
+
+                try:
+                    vod = self.stream.clip()
+                    vod_end = vod.start + vod.duration
+                except Exception:
+                    vod_end = None
+                    print('WARN: Unable to get duration of VOD')
+
+                    print('Waiting 120 seconds for VOD to catch up')
                     if self.session.dirty.wait(120):
                         print('Wait interrupted, rechecking')
                         break
 
                 for (start, end) in missing_parts:
+                    if end and vod_end and (end + 30 > vod_end):
+                        result, vod_end = self.await_vod(end + 30)
+                        if not result:
+                            break
+
                     print(f'Downloading segment {start}~{end}')
                     segment = self.stream.copy()
-                    segment.start = max(0, start - 60)
-                    segment.end = end + 60
+                    segment.start = max(0, start - 30 - offset)
+                    segment.end = end + 30 - offset
 
                     filename = self.session.next_file()
                     segment.download(filename)

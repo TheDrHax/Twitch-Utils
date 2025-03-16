@@ -29,12 +29,8 @@ class Clip(object):
         self.container = container
 
         info = self.ffprobe('format=duration,start_time')['format']
-        if 'start_time' in info:  ## MPEG-TS only
-            self.start = float(info['start_time'])
-        else:
-            self.start = 0
-
-        self._duration = float(info['duration'])
+        self.start = float(info.get('start_time', 0))
+        self._duration = float(info.get('duration', 0))
         self.__duration = self._duration
 
         self.end = self.start + self.duration
