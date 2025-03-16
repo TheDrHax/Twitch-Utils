@@ -192,13 +192,12 @@ class Stream(object):
         return exit_code
 
     def _target_download(self, *args):
-        self.started.clear()
-
         self.result = None
         self.result = self.download(*args)
 
         # Unlock waiting threads if exit was early
         self.started.set()
+        self.started.clear()
 
     def download_async(self, dest: str) -> Thread:
         p = Thread(target=self._target_download, args=(dest,))
