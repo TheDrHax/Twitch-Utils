@@ -201,6 +201,7 @@ class Stream(object):
         self.started.clear()
 
     def download_async(self, dest: str) -> Thread:
+        self.started.clear()
         p = Thread(target=self._target_download, args=(dest,))
         p.start()
         return p
