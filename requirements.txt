@@ -1,4 +1,5 @@
 requests
+retry-requests
 python-dateutil
 streamlink==5.5.1
 docopt==0.6.2

@@ -1,15 +1,18 @@
 from typing import Any, Dict, Union, List
-from requests import Session
+from retry_requests import retry
 from datetime import datetime
 from hashlib import sha1
 from urllib.parse import urlparse
 import dateutil.parser as dp
-from streamlink import NoPluginError
 
 try:
     from streamlink import Streamlink
+    from streamlink.exceptions import NoPluginError
 except ImportError:
     Streamlink = None
+
+    class NoPluginError(Exception):
+        pass
 
 
 # Source: https://raw.githubusercontent.com/TwitchRecover/TwitchRecover/main/domains.txt
@@ -92,7 +95,7 @@ class VodTypeMismatchException(VodException):
 
 class TwitchAPI:
     def __init__(self, headers: Dict[str, str] = {}):
-        self.session = Session()
+        self.session = retry()
 
         if Streamlink:
             self.sl = Streamlink()

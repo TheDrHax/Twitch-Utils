@@ -38,6 +38,7 @@ setup(
 
     install_requires=[
         'requests',
+        'retry-requests',
         'python-dateutil',
         'docopt>=0.6.2',
     ],
