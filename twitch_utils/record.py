@@ -525,7 +525,10 @@ def main(argv=None):
 
     def is_online():
         if api and stream:
-            return api.is_still_live(stream)
+            try:
+                return api.is_still_live(stream)
+            except Exception:
+                return True
         else:
             return True
 
