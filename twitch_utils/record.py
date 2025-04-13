@@ -457,7 +457,8 @@ class RepairThread(Thread):
                     filename = self.session.next_file()
                     segment.download(filename)
 
-            self.session.dirty.wait()
+            if self.session.recording.is_set():
+                self.session.dirty.wait()
 
         print('All parts are downloaded!')
 
