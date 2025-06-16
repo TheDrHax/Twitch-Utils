@@ -26,7 +26,7 @@ EXTRAS['all'] = list(itertools.chain.from_iterable(EXTRAS.values()))
 
 setup(
     name='tdh-twitch-utils',
-    version='1.7.3',
+    version='1.8.0',
 
     author='Dmitry Karikh',
     author_email='the.dr.hax@gmail.com',
