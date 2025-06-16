@@ -30,7 +30,9 @@ import math
 from itertools import count
 from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Union, Tuple
+from typing import Callable, Dict, Union
+
+from twitch_utils.hls import SimpleHLS
 
 try:
     import streamlink
@@ -64,15 +66,11 @@ class Stream(object):
                  quality: str = 'best',
                  threads: int = 1,
                  api: Union[TwitchAPI, None] = None,
-                 start: int = 0,
-                 end: Union[int, None] = None,
                  live: bool = False):
         self.url = url
         self.quality = quality
         self.threads = threads
         self.api = api
-        self.start = start
-        self.end = end
         self.live = live
 
         self.result = -1
@@ -81,19 +79,13 @@ class Stream(object):
 
     def copy(self):
         return Stream(self.url, self.quality, self.threads,
-                      self.api, self.start, self.end)
+                      self.api)
 
     def _args(self) -> list:
         params: Dict[str, Union[str, int]] = {
             'stream-segment-attempts': 5,
             'stream-segment-threads': self.threads
         }
-
-        if self.start > 0:
-            params['hls-start-offset'] = math.floor(self.start)
-
-        if self.end:
-            params['hls-duration'] = math.ceil(self.end - self.start)
 
         args = ['-l', 'debug', '--no-config', '--twitch-disable-ads',
                 '--twitch-low-latency']
@@ -344,29 +336,33 @@ class RepairThread(Thread):
         if not vod_url:
             vod_url = f'https://twitch.tv/videos/{vod_id}'
 
-        self.stream = Stream(vod_url,
-                             api=session.api,
-                             quality=quality,
-                             threads=1)
+        self.stream = Stream(vod_url, api=session.api, quality=quality)
+        self.hls = SimpleHLS(self.stream.stream_url())
         self.vod = vod_id
 
     def first_vod(self):
-        result = -1
+        try:
+            timeline = create_timeline(self.vod, self.session.counter.value)
+            start = timeline.start
+        except MissingRangesError as ex:
+            start = ex.start
+
+        result = None
         filename = self.session.next_file()
 
-        while result != 0:
-            if result > 0:
+        while not result:
+            if result is not None:
                 print('WARN: Could not download VOD (exit code '
                         f'{result}), retrying in 60 seconds...')
                 sleep(60)
 
-            result = self.stream.download(filename)
+            self.hls.download(filename, end = start + 30)
 
-            if result == 0:
-                try:
-                    Clip(filename)
-                except Exception:
-                    result = 4095
+            try:
+                Clip(filename)
+                result = True
+            except Exception:
+                result = False
 
         print(f'Finished download of VOD (exit code: {result})')
 
@@ -390,21 +386,6 @@ class RepairThread(Thread):
                 optimized.append(ranges[i])
 
         return optimized
-
-    def await_vod(self, pos: float) -> Tuple[bool, float]:
-        max_pos = 0
-
-        while pos > max_pos:
-            print('Waiting 60 seconds for VOD to catch up')
-
-            if self.session.dirty.wait(60):
-                print('Wait interrupted, rechecking')
-                return False, max_pos
-
-            vod = self.stream.clip()
-            max_pos = vod.start + vod.duration
-
-        return True, max_pos
 
     def run(self):
         self.session.recording.wait()
@@ -431,31 +412,13 @@ class RepairThread(Thread):
                     missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')
 
-                try:
-                    vod = self.stream.clip()
-                    vod_end = vod.start + vod.duration
-                except Exception:
-                    vod_end = None
-                    print('WARN: Unable to get duration of VOD')
-
-                    print('Waiting 120 seconds for VOD to catch up')
-                    if self.session.dirty.wait(120):
-                        print('Wait interrupted, rechecking')
-                        break
-
                 for (start, end) in missing_parts:
-                    if end and vod_end and (end + 30 > vod_end):
-                        result, vod_end = self.await_vod(end + 30)
-                        if not result:
-                            break
-
                     print(f'Downloading segment {start}~{end}')
-                    segment = self.stream.copy()
-                    segment.start = max(0, start - 30 - offset)
-                    segment.end = end + 30 - offset
 
                     filename = self.session.next_file()
-                    segment.download(filename)
+                    self.hls.download(filename,
+                                      start = max(0, start - 30 - offset),
+                                      end = end + 30 - offset)
 
             if self.session.recording.is_set():
                 self.session.dirty.wait()

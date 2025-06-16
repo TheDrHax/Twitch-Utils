@@ -59,6 +59,11 @@ class Clip(object):
         ff.terminate()
         ff.wait()
 
+        if len(frames) < 3:
+            print(f'WARN: Clip {self.name} is too short to determine '
+                  'frame monotonicity')
+            return 0, 0, False
+
         offset = frames[0]
         step = frames[1] - offset
         monotonous = (frames[2] - offset - step * 2) == 0
