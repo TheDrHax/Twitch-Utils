@@ -46,7 +46,7 @@ except ImportError:
 from time import sleep
 from threading import Lock, Thread, Event
 from docopt import docopt
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, DEVNULL
 
 from .clip import Clip
 from .concat import Timeline, MissingRangesError
@@ -108,14 +108,26 @@ class Stream(object):
         fo = open(dest, 'wb')
         sl_cmd = ['streamlink'] + self._args()
         sl_env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
-        sl_kwargs = {'stdout': fo,
+        sl_kwargs = {'stdout': PIPE,
                      'stderr': PIPE,
                      'text': True,
                      'env': sl_env}
         sl_proc = Popen(sl_cmd, **sl_kwargs)
 
+        ff_cmd = ['ffmpeg', '-hide_banner',
+                  '-i', '-',
+                  '-c', 'copy', '-copyts',
+                  '-f', 'mpegts', '-']
+        ff_kwargs = {'stdin': sl_proc.stdout,
+                     'stdout': fo,
+                     'stderr': DEVNULL}
+        ff_proc = Popen(ff_cmd, **ff_kwargs)
+
+        sl_proc.stdout.close()
+
         expected, downloaded = [-1] * 2
         first_segment = True
+        ts = 0
 
         while True:
             line = sl_proc.stderr.readline()
@@ -131,6 +143,17 @@ class Stream(object):
             failed = Stream.PARSE_FAILED.parse(line)
             discarded = Stream.PARSE_DISCARDED.parse(line)
 
+            if fo.tell() > 0 and not self.started.is_set():
+                # Log precise timings to leave some traces for manual
+                # checks of recording's consistency
+                # For example: If the following calculation
+                #       (ts2 - ts1) - (inpoint2 - inpoint1)
+                # is > 0, we can assume that Twitch has lost some segments
+                # and the stream has become shorter by this amount.
+                inpoint = Clip(dest).inpoint
+                print(f'Clip {dest} started at {ts} with offset {inpoint}')
+                self.started.set()
+
             if failed or (not first_segment and discarded):
                 print(f'ERR: {line}')
                 sl_proc.terminate()
@@ -145,18 +168,9 @@ class Stream(object):
                 segment = complete['segment']
 
                 if self.live and first_segment:
-                    # Log precise timings to leave some traces for manual
-                    # checks of recording's consistency
-                    # For example: If the following calculation
-                    #       (ts2 - ts1) - (inpoint2 - inpoint1)
-                    # is > 0, we can assume that Twitch has lost some segments
-                    # and the stream has become shorter by this amount.
+                    # First write is delayed, log timestamp now
                     ts = datetime.now().timestamp()
-                    inpoint = Clip(dest).inpoint
-                    print(f'Clip {dest} started at {ts} with offset {inpoint}')
                     first_segment = False
-
-                self.started.set()
 
                 if downloaded == -1 or downloaded + 1 == segment:
                     downloaded = segment
@@ -174,6 +188,7 @@ class Stream(object):
                 print('Waiting for ads to finish...')
 
         sl_proc.wait()
+        ff_proc.wait()
 
         fo.flush()
         fo.close()
@@ -356,7 +371,8 @@ class RepairThread(Thread):
                         f'{result}), retrying in 60 seconds...')
                 sleep(60)
 
-            self.hls.download(filename, end = start + 30)
+            with open(filename, 'wb') as fo:
+                self.hls.download(fo, end = start + 30)
 
             try:
                 Clip(filename)
@@ -416,9 +432,11 @@ class RepairThread(Thread):
                     print(f'Downloading segment {start}~{end}')
 
                     filename = self.session.next_file()
-                    self.hls.download(filename,
-                                      start = max(0, start - 30 - offset),
-                                      end = end + 30 - offset)
+
+                    with open(filename, 'wb') as fo:
+                        self.hls.download(fo,
+                                          start = max(0, start - 30 - offset),
+                                          end = end + 30 - offset)
 
             if self.session.recording.is_set():
                 self.session.dirty.wait()

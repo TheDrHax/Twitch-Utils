@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from retry_requests import retry
-from typing import List, Union
+from typing import List, Union, BinaryIO
 from time import time, sleep
+from subprocess import DEVNULL, Popen, PIPE
 
 
 @dataclass
@@ -96,15 +97,35 @@ class SimpleHLS:
             if segment.final:
                 break
 
-    def download(self, filename: str, start: float = 0, end: Union[float, None] = None):
-        with open(filename, 'wb') as fo:
-            for segment in self.iterate(start, end):
-                res = self.session.get(self.base_url + segment.name, stream=True)
+    def download(self, fo: BinaryIO, start: float = 0, end: Union[float, None] = None):
+        ff_cmd = ['ffmpeg', '-hide_banner',
+                  '-i', '-',
+                  '-c', 'copy', '-copyts',
+                  '-f', 'mpegts', '-']
+        ff_kwargs = {'stdin': PIPE,
+                     'stdout': fo,
+                     'stderr': DEVNULL}
+        ff_proc = Popen(ff_cmd, **ff_kwargs)
 
-                if res.status_code != 200:
-                    print(f'Failed to download segment {segment.name} '
-                          f'(code: {res.status_code})')
-                    break
+        for segment in self.iterate(start, end):
+            res = self.session.get(self.base_url + segment.name, stream=True)
 
-                for chunk in res.iter_content(4096):
-                    fo.write(chunk)
+            if res.status_code != 200:
+                print(f'Failed to download segment {segment.name} '
+                      f'(code: {res.status_code})')
+                break
+
+            for chunk in res.iter_content(4096):
+                ff_proc.stdin.write(chunk)
+
+        ff_proc.stdin.flush()
+        ff_proc.stdin.close()
+        ff_proc.wait()
+
+
+if __name__ == '__main__':
+    import sys
+
+    with open(sys.argv[2], 'wb') as fo:
+        hls = SimpleHLS(sys.argv[1])
+        hls.download(fo)
