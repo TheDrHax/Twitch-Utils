@@ -10,7 +10,7 @@ with open('README.md', 'r') as fi:
 
 EXTRAS = {
     'record': [
-        'streamlink>=5.5.0',
+        'streamlink>=7.4.0',
         'parse>=1.19.0'
     ],
     'offset': [
@@ -26,7 +26,7 @@ EXTRAS['all'] = list(itertools.chain.from_iterable(EXTRAS.values()))
 
 setup(
     name='tdh-twitch-utils',
-    version='1.8.0',
+    version='1.8.1',
 
     author='Dmitry Karikh',
     author_email='the.dr.hax@gmail.com',
