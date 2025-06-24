@@ -8,6 +8,7 @@ from time import time, sleep
 class HLSSegment:
     duration: float = 0
     name: str = '0.ts'
+    init: bool = False
     final: bool = False
 
 
@@ -41,6 +42,12 @@ class SimpleHLS:
             if line.startswith('#EXT-X-TARGETDURATION'):
                 self.target_duration = float(line.split(':')[1])
 
+            if line.startswith('#EXT-X-MAP:URI='):
+                segment = HLSSegment()
+                segment.name = line.split('=')[1].strip('"')
+                segment.duration = 0
+                segment.init = True
+
             if line.startswith('#EXTINF:'):
                 if segment:
                     segments.append(segment)
@@ -73,8 +80,12 @@ class SimpleHLS:
                     raise StopIteration
 
             segment = self.segments[i]
-
             i += 1
+
+            if segment.init:
+                yield segment
+                continue
+
             offset += segment.duration
 
             if offset < start:
