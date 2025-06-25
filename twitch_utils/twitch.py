@@ -35,6 +35,7 @@ VOD_DOMAINS = [
     'd2um2qdswy1tb0.cloudfront.net',
     'd2vjef5jvl6bfs.cloudfront.net',
     'd2xmjdvx03ij56.cloudfront.net',
+    'd3fi1amfgojobc.cloudfront.net',
     'd36nr0u3xmc4mm.cloudfront.net',
     'd3aqoihi2n8ty8.cloudfront.net',
     'd3c27h4odz752x.cloudfront.net',
@@ -54,10 +55,11 @@ VOD_DOMAINS = [
 # Source: https://github.com/tanersb/TwitchRecover/blob/
 # bee8cc29fd44b00070c96c4c4c0d1b6ad811dcbd/recover.py#L14-L42
 # /src/TwitchRecover.Core/Compute.java#L51
-def vod_path(channel: str, stream_id: str, started_at: datetime) -> str:
+def vod_path(channel: str, stream_id: str,
+             started_at: datetime, quality: str) -> str:
     base = f'{channel.lower()}_{stream_id}_{int(started_at.timestamp())}'
     hash = sha1(base.encode()).hexdigest()[:20]
-    return f'/{hash}_{base}/chunked/index-dvr.m3u8'
+    return f'/{hash}_{base}/{quality}/index-dvr.m3u8'
 
 
 class TwitchException(Exception):
@@ -203,16 +205,20 @@ class TwitchAPI:
         login = stream['broadcaster']['login']
         started_at = dp.parse(stream['createdAt'])
 
-        path = vod_path(login, stream_id, started_at)
-
         # Try domain from previous VOD first
         predicted_domain = self.vod_probe_domain(login)
+
+        if predicted_domain and predicted_domain not in VOD_DOMAINS:
+            VOD_DOMAINS.append(predicted_domain)
+
         domains = sorted(VOD_DOMAINS, key=lambda x: x != predicted_domain)
 
         for domain in domains:
-            url = f'https://{domain}{path}'
-            res = self.session.head(url, timeout=5)
-            print(f'[{res.status_code}] {url}')
+            for quality in ['1080p60', 'chunked']:
+                path = vod_path(login, stream_id, started_at, quality)
+                url = f'https://{domain}{path}'
+                res = self.session.head(url, timeout=5)
+                print(f'[{res.status_code}] {url}')
 
             if res.status_code == 200:
                 return url
