@@ -26,7 +26,6 @@ Options:
 
 import os
 import sys
-import math
 from itertools import count
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -143,7 +142,7 @@ class Stream(object):
             failed = Stream.PARSE_FAILED.parse(line)
             discarded = Stream.PARSE_DISCARDED.parse(line)
 
-            if fo.tell() > 0 and not self.started.is_set():
+            if fo.tell() > 0 and ts > 0 and not self.started.is_set():
                 # Log precise timings to leave some traces for manual
                 # checks of recording's consistency
                 # For example: If the following calculation
