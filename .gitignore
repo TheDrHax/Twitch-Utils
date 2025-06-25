@@ -6,4 +6,6 @@ build
 dist
 *.egg-info
 *.ts
+*.mp4
 /pretrained_models
+/.nobackup
