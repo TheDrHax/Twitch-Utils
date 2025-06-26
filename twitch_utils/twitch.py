@@ -199,7 +199,7 @@ class TwitchAPI:
         url = urlparse(stream.url)
         return url.hostname
 
-    def vod_probe(self, stream: Dict[str, Any]) -> str:
+    def vod_probe(self, stream: Dict[str, Any], quality: str = 'chunked') -> str:
         """Returns URL of VOD's playlist."""
         stream_id = stream['id']
         login = stream['broadcaster']['login']
@@ -214,11 +214,10 @@ class TwitchAPI:
         domains = sorted(VOD_DOMAINS, key=lambda x: x != predicted_domain)
 
         for domain in domains:
-            for quality in ['1080p60', 'chunked']:
-                path = vod_path(login, stream_id, started_at, quality)
-                url = f'https://{domain}{path}'
-                res = self.session.head(url, timeout=5)
-                print(f'[{res.status_code}] {url}')
+            path = vod_path(login, stream_id, started_at, quality)
+            url = f'https://{domain}{path}'
+            res = self.session.head(url, timeout=5)
+            print(f'[{res.status_code}] {url}')
 
             if res.status_code == 200:
                 return url

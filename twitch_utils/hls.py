@@ -97,7 +97,9 @@ class SimpleHLS:
             if segment.final:
                 break
 
-    def download(self, fo: BinaryIO, start: float = 0, end: Union[float, None] = None):
+    def download(self, fo: BinaryIO, start: float = 0, end: Union[float, None] = None) -> bool:
+        result = True
+
         ff_cmd = ['ffmpeg', '-hide_banner',
                   '-i', '-',
                   '-c', 'copy', '-copyts',
@@ -113,6 +115,7 @@ class SimpleHLS:
             if res.status_code != 200:
                 print(f'Failed to download segment {segment.name} '
                       f'(code: {res.status_code})')
+                result = False
                 break
 
             for chunk in res.iter_content(4096):
@@ -121,6 +124,8 @@ class SimpleHLS:
         ff_proc.stdin.flush()
         ff_proc.stdin.close()
         ff_proc.wait()
+
+        return result
 
 
 if __name__ == '__main__':

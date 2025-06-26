@@ -83,6 +83,33 @@ Algorithm:
 twitch_utils record -j 2 blackufa
 ```
 
+## vod
+
+In June 2025 Twitch added `EXT-X-PLAYLIST-TYPE:EVENT` option to VOD playlists.
+Now they are not static, and streamlink can't be used to download parts of VOD
+with `--hls-start-offset`. However this means that we can now record the whole
+stream from the beginning by just downloading the VOD until it ends.
+
+This script uses very simple HLS client implementation that can download
+VODs partially, continue after restart and assemble full recording from multiple
+parts.
+
+### Example
+
+```
+# Record currently live channel (VOD will be found automatically)
+twitch_utils vod -c blackufa
+
+# Record a specific VOD by ID
+twitch_utils vod -v 2496311779
+
+# Force a specific HLS playlist for VOD
+twitch_utils vod -v 2496311779 -u https://.../m3u8
+
+# List available resolutions
+twitch_utils vod -c blackufa -Q
+```
+
 ## offset
 
 This script performs cross-correlation of two audio files to find

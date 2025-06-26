@@ -27,6 +27,9 @@ def main(argv=None):
     elif args['<command>'] == 'record':
         from .record import main as record_main
         record_main(argv)
+    elif args['<command>'] == 'vod':
+        from .vod import main as vod_main
+        vod_main(argv)
 
 
 if __name__ == '__main__':

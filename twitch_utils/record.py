@@ -62,7 +62,7 @@ class Stream(object):
     PARSE_DISCARDED = compile('{} Discarding segment {segment:d}{}')
 
     def __init__(self, url: str,
-                 quality: str = 'best',
+                 quality: Union[str, None] = 'best',
                  threads: int = 1,
                  api: Union[TwitchAPI, None] = None,
                  live: bool = False):
@@ -94,7 +94,12 @@ class Stream(object):
             for key, value in self.api.get_headers().items():
                 args += [f'--twitch-api-header={key}={value}']
 
-        args += [self.url, self.quality, '-O']
+        args.append(self.url)
+
+        if self.quality:
+            args.append(self.quality)
+
+        args.append('-O')
 
         return args
 
@@ -105,6 +110,7 @@ class Stream(object):
         exit_code = 0
 
         fo = open(dest, 'wb')
+
         sl_cmd = ['streamlink'] + self._args()
         sl_env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
         sl_kwargs = {'stdout': PIPE,
