@@ -34,14 +34,12 @@ class Clip(object):
         duration = float(info.get('duration', 0))
         format_name = info.get('format_name', 'mpegts')
 
-        if format_name == 'mpegts':
-            self._duration = duration
-            self.end = self.start + self.duration
-        elif format_name == 'mov,mp4,m4a,3gp,3g2,mj2':
+        if format_name == 'mov,mp4,m4a,3gp,3g2,mj2':
             self.end = duration
             self._duration = self.end - self.start
         else:
-            raise Exception(f'Unsupported format: {format_name}')
+            self._duration = duration
+            self.end = self.start + self.duration
 
         self.__duration = self._duration
         self.inpoint = self.start
