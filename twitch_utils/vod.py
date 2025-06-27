@@ -48,6 +48,10 @@ def parse_usher(res: str) -> Dict[str, str]:
             streams[quality] = line
             quality = None
 
+    if 'chunked' not in streams:
+        first_key = list(streams.keys())[0]
+        streams['chunked'] = streams[first_key].replace(first_key, 'chunked')
+
     return streams
 
 
