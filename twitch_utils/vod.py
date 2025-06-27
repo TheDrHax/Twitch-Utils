@@ -75,6 +75,10 @@ def resolve_playlist(args, api: TwitchAPI):
 
         try:
             vod = api.get_active_vod(stream)
+
+            if url:
+                return vod, url
+
             vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None)
             main_url = vod_obj.stream_url()
         except VodNotFoundException:
