@@ -149,6 +149,9 @@ def main(argv=None):
     output = args['-o']
     parts = session.counter.value
 
+    if not output:
+        output = f'{vod}.ts'
+
     try:
         t = create_timeline(vod, parts)
     except MissingRangesError as ex:
@@ -156,19 +159,16 @@ def main(argv=None):
         print('ERR: Unable to concatenate segments!')
         sys.exit(1)
 
-    if not args['--no-concat']:
-        if not output:
-            output = f'{vod}.ts'
-
+    if parts == 1 and output.endswith('.ts') and not args['--no-concat']:
+        print('Skipping concatenation (not required)')
+        os.rename(generate_filename(vod, 0), output)
+    elif not args['--no-concat']:
         print(f'Writing stream recording to {output}')
         t.render(output, force=args['--force'])
 
         print('Cleaning up...')
         [os.unlink(generate_filename(vod, part)) for part in range(parts)]
     else:
-        if not output:
-            output = f'{vod}.mp4'
-
         files = ' '.join(generate_filename(vod, part) for part in range(parts))
 
         print('Use this command to concatenate parts into a full video:')
