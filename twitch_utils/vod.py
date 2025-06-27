@@ -59,6 +59,13 @@ def resolve_playlist(args, api: TwitchAPI):
     url = args['-u']
     main_url = None
 
+    if (vod := args['<vod>']):
+        if url:
+            return vod, url
+
+        vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None)
+        main_url = vod_obj.stream_url()
+
     if (channel := args['<channel>']):
         stream = api.get_stream(channel)
 
@@ -75,13 +82,7 @@ def resolve_playlist(args, api: TwitchAPI):
             url = api.vod_probe(stream, args['-q'])
             vod = str(stream['id'])
             print(f'VOD found! Using stream ID {vod} as base name')
-
-    if (vod := args['<vod>']):
-        if url:
             return vod, url
-
-        vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None)
-        main_url = vod_obj.stream_url()
 
     if main_url:
         res = api.session.get(main_url)
