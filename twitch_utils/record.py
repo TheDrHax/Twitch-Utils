@@ -49,7 +49,7 @@ from subprocess import Popen, PIPE, DEVNULL
 
 from .clip import Clip
 from .concat import Timeline, MissingRangesError
-from .twitch import TwitchAPI, VodException
+from .twitch import TwitchAPI, VodException, VodNotFoundException
 
 
 DEBUG = False
@@ -347,22 +347,21 @@ class RecordThread(Thread):
 
 class RepairThread(Thread):
     def __init__(self, session: RecordingSession,
-                 vod_id: str, vod_url: Union[str, None] = None,
+                 vod_url: Union[str, None] = None,
                  quality: str = 'best'):
         super().__init__()
 
         self.session = session
 
         if not vod_url:
-            vod_url = f'https://twitch.tv/videos/{vod_id}'
+            vod_url = f'https://twitch.tv/videos/{session.vod}'
 
-        self.stream = Stream(vod_url, api=session.api, quality=quality)
-        self.hls = SimpleHLS(self.stream.stream_url())
-        self.vod = vod_id
+        stream = Stream(vod_url, api=session.api, quality=quality)
+        self.hls = SimpleHLS(stream.stream_url())
 
     def first_vod(self):
         try:
-            timeline = create_timeline(self.vod, self.session.counter.value)
+            timeline = create_timeline(self.session.vod, self.session.counter.value)
             start = timeline.start
         except MissingRangesError as ex:
             start = ex.start
@@ -424,7 +423,7 @@ class RepairThread(Thread):
                 print('Testing the possibility of concatenation')
 
                 try:
-                    create_timeline(self.vod, self.session.counter.value)
+                    create_timeline(self.session.vod, self.session.counter.value)
                     print('Timeline is complete, good!')
                     missing_parts = None
                     break
@@ -483,21 +482,9 @@ def main(argv=None):
     try:
         if not vod:
             vod = api.get_active_vod(stream)
-            vod_url = None
     except VodException:
-        print('VOD is not listed, attempting to find the playlist')
-        vod_url = api.vod_probe(stream)
         vod = stream['id']
-        print(f'VOD found! Using stream ID {vod} as base name')
-
-        if args['--quality'] != 'best':
-            print('WARN: Resetting quality to `best` (other options '
-                    'are not supported yet)')
-            args['--quality'] = 'best'
-
-    if not vod:
-        print('ERR: Unable to find VOD')
-        sys.exit(1)
+        print(f'WARN: VOD is not listed, using stream ID {vod} as base name')
 
     session = RecordingSession(vod, api)
 
@@ -507,7 +494,7 @@ def main(argv=None):
             session.counter.set(i)
             break
 
-    if session.counter.value > 0:
+    if (resumed := session.counter.value > 0):
         print('Found previous segments, resuming download')
 
     def is_online():
@@ -519,10 +506,48 @@ def main(argv=None):
         else:
             return True
 
+    print('Starting record thread')
     record = RecordThread(session, channel, args['--quality'], args['-j'], is_online)
-    repair = RepairThread(session, vod, vod_url, args['--quality'])
-
     record.start()
+
+    if vod == stream['id']:
+        if not resumed:
+            session.recording.wait()
+
+        print('Attempting to find the VOD playlist')
+
+        clip = None
+
+        for i in range(session.counter.value):
+            try:
+                clip = Clip(generate_filename(vod, i))
+            except Exception:
+                pass
+
+        if not clip:
+            print('ERR: No readable segments found, unable to get resolution')
+            sys.exit(1)
+
+        height = clip.height
+        qualities = []
+        if height >= 720:
+            qualities += [f'{height}p60', f'{height}p30']
+        else:
+            qualities += [f'{height}']
+        qualities += ['chunked']
+
+        for i in qualities:
+            try:
+                vod_url = api.vod_probe(stream, i)
+            except VodNotFoundException:
+                pass
+
+        if not vod_url:
+            print(f'ERR: VOD not found')
+            sys.exit(1)
+
+    print('Starting repair thread')
+    repair = RepairThread(session, vod_url, args['--quality'])
     repair.start()
 
     record.join()

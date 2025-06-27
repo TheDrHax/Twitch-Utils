@@ -45,6 +45,12 @@ class Clip(object):
         self.inpoint = self.start
         self.outpoint = self.end
 
+        info = self.ffprobe('stream=height', 'v:0')['streams']
+        if len(info) > 0:
+            self.height = info[0].get('height', 0)
+        else:
+            self.height = 0
+
     def keyframes(self) -> Tuple[float, float, bool]:
         command = ['ffprobe',
                    '-v', 'error',
