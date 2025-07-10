@@ -434,7 +434,7 @@ class RepairThread(Thread):
                     break
                 except MissingRangesError as ex:
                     if ex.start - offset > 1:
-                        ex.ranges.push((offset, ex.start))
+                        ex.ranges.append((offset, ex.start))
 
                     missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')

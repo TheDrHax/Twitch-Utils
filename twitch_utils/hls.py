@@ -4,8 +4,9 @@ from retry_requests import retry
 from typing import List, Union, BinaryIO
 from time import time, sleep
 from subprocess import DEVNULL, Popen, PIPE
-from .utils import tmpfile
 
+from .utils import tmpfile
+from .clip import Clip
 
 @dataclass
 class HLSSegment:
@@ -132,7 +133,7 @@ class SimpleHLS:
     def offset(self):
         clip_file = tmpfile('ts')
 
-        with open(clip_file) as fo:
+        with open(clip_file, 'wb') as fo:
             self.download(fo, end = 30)
 
         clip = Clip(clip_file)
