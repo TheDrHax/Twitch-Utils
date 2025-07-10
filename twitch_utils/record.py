@@ -413,6 +413,8 @@ class RepairThread(Thread):
         if not self.hls:
             self.hls = SimpleHLS(self.stream.stream_url())
 
+        offset = self.hls.offset()
+
         missing_parts = None
 
         # Retry first VOD at least until it is readable
@@ -431,7 +433,9 @@ class RepairThread(Thread):
                     missing_parts = None
                     break
                 except MissingRangesError as ex:
-                    offset = ex.start
+                    if ex.start - offset > 1:
+                        ex.ranges.push((offset, ex.start))
+
                     missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')
 

@@ -1,8 +1,10 @@
+import os
 from dataclasses import dataclass
 from retry_requests import retry
 from typing import List, Union, BinaryIO
 from time import time, sleep
 from subprocess import DEVNULL, Popen, PIPE
+from .utils import tmpfile
 
 
 @dataclass
@@ -126,6 +128,19 @@ class SimpleHLS:
         ff_proc.wait()
 
         return result
+
+    def offset(self):
+        clip_file = tmpfile('ts')
+
+        with open(clip_file) as fo:
+            self.download(fo, end = 30)
+
+        clip = Clip(clip_file)
+        offset = clip.start
+
+        os.unlink(clip_file)
+
+        return offset
 
 
 if __name__ == '__main__':
