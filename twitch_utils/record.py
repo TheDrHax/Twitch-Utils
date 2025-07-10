@@ -356,8 +356,8 @@ class RepairThread(Thread):
         if not vod_url:
             vod_url = f'https://twitch.tv/videos/{session.vod}'
 
-        stream = Stream(vod_url, api=session.api, quality=quality)
-        self.hls = SimpleHLS(stream.stream_url())
+        self.stream = Stream(vod_url, api=session.api, quality=quality)
+        self.hls = None
 
     def first_vod(self):
         try:
@@ -410,6 +410,9 @@ class RepairThread(Thread):
     def run(self):
         self.session.recording.wait()
 
+        if not self.hls:
+            self.hls = SimpleHLS(self.stream.stream_url())
+
         missing_parts = None
 
         # Retry first VOD at least until it is readable
@@ -433,14 +436,17 @@ class RepairThread(Thread):
                     print(f'WARN: {ex}')
 
                 for (start, end) in missing_parts:
-                    print(f'Downloading segment {start}~{end}')
+                    start_o = max(0, start - 30 - offset)
+                    end_o = end + 30 - offset
+                    print(f'Downloading segment {start}~{end}'
+                          f'({start_o}~{end_o})')
 
                     filename = self.session.next_file()
 
                     with open(filename, 'wb') as fo:
                         self.hls.download(fo,
-                                          start = max(0, start - 30 - offset),
-                                          end = end + 30 - offset)
+                                          start = start_o,
+                                          end = end_o)
 
             if self.session.recording.is_set():
                 self.session.dirty.wait()
