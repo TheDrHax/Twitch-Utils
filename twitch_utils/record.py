@@ -60,6 +60,7 @@ class Stream(object):
     PARSE_COMPLETE = compile('{} Segment {segment:d} complete{}')
     PARSE_FAILED = compile('{} Download of segment {segment:d} failed{}')
     PARSE_DISCARDED = compile('{} Discarding segment {segment:d}{}')
+    PARSE_SKIPPED = compile('{} Skipped segments {data} after playlist reload{}')
 
     def __init__(self, url: str,
                  quality: Union[str, None] = 'best',
@@ -147,6 +148,7 @@ class Stream(object):
             complete = Stream.PARSE_COMPLETE.parse(line)
             failed = Stream.PARSE_FAILED.parse(line)
             discarded = Stream.PARSE_DISCARDED.parse(line)
+            skipped = Stream.PARSE_SKIPPED.parse(line)
 
             if fo.tell() > 0 and ts > 0 and not self.started.is_set():
                 # Log precise timings to leave some traces for manual
@@ -169,6 +171,11 @@ class Stream(object):
 
                 if queued['segment'] > expected:
                     expected = queued['segment']
+            elif skipped:
+                print(f'ERR: Skipped segments {skipped["data"]}')
+                sl_proc.terminate()
+                exit_code = 1
+                break
             elif complete:
                 segment = complete['segment']
 
