@@ -122,6 +122,7 @@ class Stream(object):
 
         ff_cmd = ['ffmpeg', '-hide_banner',
                   '-i', '-',
+                  '-map', '0:v', '-map', '0:a',
                   '-c', 'copy', '-copyts',
                   '-f', 'mpegts', '-']
         ff_kwargs = {'stdin': sl_proc.stdout,
