@@ -169,7 +169,12 @@ class Timeline(list):
                 main_layout = streams
                 max_size = size
         
+        height = self[0].height
+
         for i, c in enumerate(self):
+            if c.height != height:
+                raise Exception('Video resolution of parts is not consistent')
+
             if c.streams != main_layout:
                 print(f'Remuxing {c.name} to fix the order of streams',
                       file=sys.stderr)
