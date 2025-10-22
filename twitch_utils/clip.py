@@ -45,11 +45,35 @@ class Clip(object):
         self.inpoint = self.start
         self.outpoint = self.end
 
-        info = self.ffprobe('stream=height', 'v:0')['streams']
-        if len(info) > 0:
-            self.height = info[0].get('height', 0)
+        info = self.ffprobe('stream=id,codec_type,height')['streams']
+        streams = dict(map(lambda s: (s['codec_type'], s), info))
+
+        self.streams = [s[0] for s in streams.keys()]
+
+        if 'video' in streams:
+            self.height = streams['video']['height']
         else:
             self.height = 0
+
+    def remux(self, streams = ['v', 'a', 'd']):
+        fo = tmpfile('ts', '.')
+
+        command = ['ffmpeg', '-y',
+                   '-i', self.path,
+                   '-c', 'copy', '-copyts']
+
+        for stream in streams:
+            command += ['-map', f'0:{stream}?']
+
+        command += [fo]
+
+        ff = run(command)
+
+        if ff.returncode != 0:
+            os.unlink(fo)
+            raise Exception(f'ffmpeg exited with non-zero code: {ff.returncode}')
+
+        return Clip(fo, tmpfile=fo)
 
     def keyframes(self) -> Tuple[float, float, bool]:
         command = ['ffprobe',

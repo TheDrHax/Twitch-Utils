@@ -33,6 +33,7 @@ MP4 options:
 import os
 import sys
 from typing import List
+from itertools import groupby
 
 from docopt import docopt
 from subprocess import run, PIPE
@@ -157,6 +158,23 @@ class Timeline(list):
     def edl_map(self) -> str:
         return '# mpv EDL v0\n' + '\n'.join(self.edl_parts())
 
+    def ensure_consistency(self):
+        main_layout = None
+        max_size = 0
+
+        for streams, clips in groupby(self, lambda c: c.streams):
+            size = sum(c.outpoint - c.inpoint for c in clips)
+
+            if size > max_size:
+                main_layout = streams
+                max_size = size
+        
+        for i, c in enumerate(self):
+            if c.streams != main_layout:
+                print(f'Remuxing {c.name} to fix the order of streams',
+                      file=sys.stderr)
+                self[i] = c.remux(main_layout)
+
     def render(self, path: str = 'full.mp4', container: str = 'mp4',
                mp4_faststart: bool = False, force: bool = False) -> int:
         if path.endswith('.edl') or path == '-' and container == 'edl':
@@ -172,9 +190,9 @@ class Timeline(list):
             print(self.edl_uri())
             return 0
 
-        concat_map = self.ffconcat_map()
-
         if path.endswith('.txt') or path == '-' and container == 'txt':
+            concat_map = self.ffconcat_map()
+
             if path == '-':
                 print(concat_map)
             else:
@@ -182,6 +200,9 @@ class Timeline(list):
                     fo.write(concat_map)
                     fo.flush()
             return 0
+
+        self.ensure_consistency()
+        concat_map = self.ffconcat_map()
 
         print(concat_map, file=sys.stderr)
 
