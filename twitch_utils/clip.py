@@ -8,10 +8,19 @@ from typing import List, Tuple
 from .utils import tmpfile
 
 
+USER_AGENT = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36')
+
+
 class Clip(object):
     def ffprobe(self, entries, stream=None) -> dict:
-        command = ['ffprobe', '-v', 'error', '-of', 'json',
-                   '-show_entries', entries]
+        command = ['ffprobe']
+
+        if self.path.startswith('http'):
+            command += ['-user_agent', USER_AGENT]
+
+        command += ['-v', 'error',
+                   '-of', 'json', '-show_entries', entries]
 
         if stream:
             command += ['-select_streams', stream]
@@ -58,9 +67,14 @@ class Clip(object):
     def remux(self, streams = ['v', 'a', 'd']):
         fo = tmpfile('ts', '.')
 
-        command = ['ffmpeg', '-y',
-                   '-i', self.path,
-                   '-c', 'copy', '-copyts']
+        command = ['ffmpeg', '-y']
+
+        if self.path.startswith('http'):
+            command += ['-user_agent', USER_AGENT]
+
+        command += ['-i', self.path,
+                    '-c', 'copy',
+                    '-copyts']
 
         for stream in streams:
             command += ['-map', f'0:{stream}?']
@@ -76,7 +90,12 @@ class Clip(object):
         return Clip(fo, tmpfile=fo)
 
     def keyframes(self) -> Tuple[float, float, bool]:
-        command = ['ffprobe',
+        command = ['ffprobe']
+
+        if self.path.startswith('http'):
+            command += ['-user_agent', USER_AGENT]
+
+        command += [
                    '-v', 'error',
                    '-of', 'csv',
                    '-show_frames', 
@@ -131,8 +150,12 @@ class Clip(object):
         if not duration:
             duration = self.duration
 
-        command = (f'ffmpeg -y -v error -ss {start}').split()
-        command += ['-i', self.path]
+        command = ['ffmpeg', '-y', '-v', 'error']
+
+        if self.path.startswith('http'):
+            command += ['-user_agent', USER_AGENT]
+
+        command += ['-ss', f'{start}', '-i', self.path]
 
         if start > self.duration:
             return []
