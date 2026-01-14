@@ -56,7 +56,7 @@ DEBUG = False
 
 
 class Stream(object):
-    PARSE_QUEUED = compile('{} Adding segment {segment:d} to queue{}')
+    PARSE_QUEUED = compile('{} Queuing TwitchHLSSegment(num={segment:d}, {}')
     PARSE_COMPLETE = compile('{} Segment {segment:d} complete{}')
     PARSE_FAILED = compile('{} Download of segment {segment:d} failed{}')
     PARSE_DISCARDED = compile('{} Discarding segment {segment:d}{}')
