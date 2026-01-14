@@ -10,7 +10,7 @@ with open('README.md', 'r') as fi:
 
 EXTRAS = {
     'record': [
-        'streamlink>=7.4.0',
+        'streamlink>=8.1.0',
         'parse>=1.19.0'
     ],
     'offset': [
@@ -54,7 +54,7 @@ setup(
 
     classifiers=[
         'Environment :: Console',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.10',
         'Intended Audience :: End Users/Desktop',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
