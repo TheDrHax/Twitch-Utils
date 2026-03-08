@@ -342,15 +342,17 @@ class RecordThread(Thread):
             print(f'Finished download of live stream (exit code: {result})')
 
             if result != 0:
-                print('Resuming in 60 seconds...')
-                sleep(60)
+                print('Resuming in 120 seconds...')
+                sleep(120)
 
                 if not self.is_online():
                     print('Stream ended')
                     break
 
         self.session.recording.clear()
-        self.session.dirty.set()
+
+        if result != 0:
+            self.session.dirty.set()
 
 
 class RepairThread(Thread):
@@ -423,7 +425,7 @@ class RepairThread(Thread):
 
         offset = self.hls.offset()
 
-        missing_parts = None
+        missing_parts = []
 
         # Retry first VOD at least until it is readable
         if self.session.counter.value == 1:
@@ -436,20 +438,29 @@ class RepairThread(Thread):
                 print('Testing the possibility of concatenation')
 
                 try:
-                    create_timeline(self.session.vod, self.session.counter.value)
-                    print('Timeline is complete, good!')
-                    missing_parts = None
-                    break
+                    tl = create_timeline(self.session.vod, self.session.counter.value)
+                    missing_parts = []
+
+                    if self.session.recording.is_set():
+                        print('Timeline is complete, good!')
+                        break
                 except MissingRangesError as ex:
+                    tl = None
+
                     if ex.start - offset > 1:
                         ex.ranges.append((offset, ex.start))
 
                     missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')
 
+                if tl:
+                    print('WARN: Will redownload ending to be sure')
+                    missing_parts = [(tl.end, None)]
+
                 for (start, end) in missing_parts:
                     start_o = max(0, start - 30 - offset)
-                    end_o = end + 30 - offset
+                    end_o = (end + 30 - offset) if end else None
+
                     print(f'Downloading segment {start}~{end}'
                           f'({start_o}~{end_o})')
 
