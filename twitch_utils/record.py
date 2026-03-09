@@ -213,7 +213,7 @@ class Stream(object):
         return exit_code
 
     def _target_download(self, *args):
-        self.result = None
+        self.result = -1
         self.result = self.download(*args)
 
         # Unlock waiting threads if exit was early
@@ -297,6 +297,7 @@ class RecordingSession:
     counter: Counter = field(default_factory=Counter)
     recording: Event = field(default_factory=Event)
     dirty: Event = field(default_factory=Event)
+    exit_code = -1
 
     def next_file(self) -> str:
         return generate_filename(self.vod, self.counter.inc() - 1)
@@ -341,6 +342,8 @@ class RecordThread(Thread):
 
             print(f'Finished download of live stream (exit code: {result})')
 
+            self.session.exit_code = result
+
             if result != 0:
                 print('Resuming in 120 seconds...')
                 sleep(120)
@@ -350,9 +353,7 @@ class RecordThread(Thread):
                     break
 
         self.session.recording.clear()
-
-        if result != 0:
-            self.session.dirty.set()
+        self.session.dirty.set()
 
 
 class RepairThread(Thread):
@@ -453,7 +454,7 @@ class RepairThread(Thread):
                     missing_parts = self.optimize_missing(ex.ranges)
                     print(f'WARN: {ex}')
 
-                if tl:
+                if tl and self.session.exit_code > 0:
                     print('WARN: Will redownload ending to be sure')
                     missing_parts = [(tl.end, None)]
 
