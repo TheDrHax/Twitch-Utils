@@ -34,23 +34,26 @@ from .hls import SimpleHLS
 def parse_usher(res: str) -> Dict[str, str]:
     streams = dict()
     quality = None
+    source = False
 
-    p = re.compile('.*VIDEO="(.*?)".*')
+    p = re.compile('.*STABLE-VARIANT-ID="(.*?)".*')
 
     for line in res.split('\n'):
         if line.startswith('#EXT-X-STREAM-INF:'):
-            m = p.match(line)
-
-            if m:
+            if m := p.match(line):
                 quality = m.group(1)
+            
+            if 'IVS-VARIANT-SOURCE="source"' in line:
+                source = True
 
         if not line.startswith('#') and quality:
             streams[quality] = line
-            quality = None
 
-    if 'chunked' not in streams:
-        first_key = list(streams.keys())[0]
-        streams['chunked'] = streams[first_key].replace(first_key, 'chunked')
+            if source:
+                streams['chunked'] = line
+
+            quality = None
+            source = False
 
     return streams
 
