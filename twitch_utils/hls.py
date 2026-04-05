@@ -122,8 +122,13 @@ class SimpleHLS:
                 result = False
                 break
 
-            for chunk in res.iter_content(4096):
-                ff_proc.stdin.write(chunk)
+            try:
+                for chunk in res.iter_content(4096):
+                    ff_proc.stdin.write(chunk)
+            except ConnectionError:
+                print('HLS: Connection failed')
+                result = False
+                break
 
         ff_proc.stdin.flush()
         ff_proc.stdin.close()
