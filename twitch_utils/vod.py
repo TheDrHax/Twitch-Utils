@@ -139,24 +139,30 @@ def main(argv=None):
     result = False
 
     while not result:
-        start, end = 0, None
+        missing_ranges = []
+        offset = 0
 
         if session.counter.value > 0:
             try:
                 timeline = create_timeline(vod, session.counter.value)
-                start = timeline.end - 120
-                end = None
+                missing_ranges = [(timeline.end, None)]
+                offset = timeline.start
             except MissingRangesError as ex:
-                start, end = ex.ranges[0]
+                missing_ranges = ex.ranges
+                offset = ex.start
 
-        filename = session.next_file()
-        print(f'Downloading {start}~{end} into {filename}')
+        for start, end in missing_ranges:
+            filename = session.next_file()
+            print(f'Downloading {start}~{end} into {filename}')
 
-        with open(filename, 'wb') as fo:
-            result = hls.download(fo, start=start, end=end)
+            start = max(0, start - 30 - offset)
+            end = (end + 30 - offset) if end else None
 
-            if end:
-                result = False
+            with open(filename, 'wb') as fo:
+                result = hls.download(fo, start=start, end=end)
+
+                if end:  # not the last segment, continue
+                    result = False
 
     output = args['-o']
     parts = session.counter.value
