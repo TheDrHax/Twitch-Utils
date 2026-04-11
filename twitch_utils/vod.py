@@ -139,9 +139,6 @@ def main(argv=None):
     result = False
 
     while not result:
-        missing_ranges = []
-        offset = 0
-
         if session.counter.value > 0:
             try:
                 timeline = create_timeline(vod, session.counter.value)
@@ -150,6 +147,9 @@ def main(argv=None):
             except MissingRangesError as ex:
                 missing_ranges = ex.ranges
                 offset = ex.start
+        else:
+            missing_ranges = [(0, None)]
+            offset = 0
 
         for start, end in missing_ranges:
             filename = session.next_file()
