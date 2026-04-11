@@ -113,8 +113,27 @@ class SimpleHLS:
                      'stderr': DEVNULL}
         ff_proc = Popen(ff_cmd, **ff_kwargs)
 
+        unmute = None
+        res = None
+
         for segment in self.iterate(start, end):
-            res = self.session.get(self.base_url + segment.name, stream=True)
+            if unmute is None and '-muted' in segment.name:
+                print('Found muted segments, trying to bypass')
+                unmute = True
+
+            if unmute:
+                name = segment.name.replace('-muted', '')
+                res = self.session.get(self.base_url + name, stream=True)
+
+                if res.status_code != 200:
+                    print('WARN: Unable to unmute, downloading as is')
+                    unmute = False
+                    res.close()
+
+            if not unmute:
+                res = self.session.get(self.base_url + segment.name, stream=True)
+
+            assert res
 
             if res.status_code != 200:
                 print(f'Failed to download segment {segment.name} '
