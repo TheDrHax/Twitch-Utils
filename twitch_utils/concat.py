@@ -89,11 +89,19 @@ class Timeline(list):
 
         return overlap, middle
 
-    def __init__(self, clips: list, min_overlap: float = 10):
-        clips.sort(key=lambda k: k.start)
-
+    def __init__(self, clips: list[Clip], min_overlap: float = 10):
         self.start = min([clip.start for clip in clips])
         self.end = max([clip.end for clip in clips])
+
+        height = max(c.height for c in clips)
+
+        for clip in clips.copy():
+            if clip.height != height:
+                print(f'WARN: Clip {clip.name} has inconsistent resolution, '
+                      'ignoring...', file=sys.stderr)
+                clips.remove(clip)
+
+        clips.sort(key=lambda k: k.start)
 
         pos = self.start
         offset, step, monotonous = clips[0].keyframes()
@@ -168,13 +176,8 @@ class Timeline(list):
             if size > max_size:
                 main_layout = streams
                 max_size = size
-        
-        height = self[0].height
 
         for i, c in enumerate(self):
-            if c.height != height:
-                raise Exception('Video resolution of parts is not consistent')
-
             if c.streams != main_layout:
                 print(f'Remuxing {c.name} to fix the order of streams',
                       file=sys.stderr)
