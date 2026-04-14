@@ -1,21 +1,23 @@
 """Usage:
-    twitch_utils vod [options] (-c <channel> | -v <vod>) [-u <url>]
+    twitch_utils vod [options] [--header=<arg>]... (-c <channel> | -v <vod>) [-u <url>]
 
 Parameters:
   output        Name of the output file. For more information see
                 `twitch_utils concat --help`. Defaults to `<vod>.ts`.
 
 Options:
-  -u <url>      Force HLS playlist URL (bypass quality selection).
-  -q <value>    Choose stream quality to save. To check available options
-                use -Q. Chunked == source. [default: chunked]
-  -Q            Displays resolutions available in the HLS playlist, then exits.
-                Works only if the VOD is listed.
-  -o <output>   Name of the output file. For more information see
-                `twitch_utils concat --help`. Defaults to `<vod>.ts`.
-  -y, --force   Overwrite output file without confirmation.
-  --no-concat   Only download all parts of the stream and ensure that
-                concatenation is possible.
+  -u <url>          Force HLS playlist URL (bypass quality selection).
+  -q <value>        Choose stream quality to save. To check available options
+                    use -Q. Chunked == source. [default: chunked]
+  -Q                Displays resolutions available in the HLS playlist, then
+                    exits. Works only if the VOD is listed.
+  -o <output>       Name of the output file. For more information see
+                    `twitch_utils concat --help`. Defaults to `<vod>.ts`.
+  -y, --force       Overwrite output file without confirmation.
+  --no-concat       Only download all parts of the stream and ensure that
+                    concatenation is possible.
+  --header <value>  Add custom headers to all Twitch API calls (including
+                    streamlink). Example: "X-Device-Id=value".
 """
 
 import os
@@ -66,7 +68,7 @@ def resolve_playlist(args, api: TwitchAPI):
         if url:
             return vod, url
 
-        vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None)
+        vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None, api=api)
         main_url = vod_obj.stream_url()
 
     if (channel := args['<channel>']):
@@ -82,7 +84,7 @@ def resolve_playlist(args, api: TwitchAPI):
             if url:
                 return vod, url
 
-            vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None)
+            vod_obj = Stream(f'https://twitch.tv/videos/{vod}', None, api=api)
             main_url = vod_obj.stream_url()
         except VodNotFoundException:
             print('VOD is not listed, attempting to find the playlist')
@@ -122,7 +124,13 @@ def resolve_playlist(args, api: TwitchAPI):
 def main(argv=None):
     args = docopt(__doc__, argv=argv)
 
-    api = TwitchAPI()
+    headers = {}
+
+    for header in args['--header']:
+        key, value = header.split('=', 1)
+        headers[key] = value
+
+    api = TwitchAPI(headers)
     vod, url = resolve_playlist(args, api)
     session = RecordingSession(vod, api)
     hls = SimpleHLS(url)
