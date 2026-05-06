@@ -4,6 +4,7 @@ from retry_requests import retry
 from typing import List, Union, BinaryIO
 from time import time, sleep
 from subprocess import DEVNULL, Popen, PIPE
+from requests.exceptions import RequestException
 
 from .utils import tmpfile
 from .clip import Clip
@@ -144,8 +145,8 @@ class SimpleHLS:
             try:
                 for chunk in res.iter_content(4096):
                     ff_proc.stdin.write(chunk)
-            except ConnectionError:
-                print('HLS: Connection failed')
+            except (ConnectionError, RequestException) as ex:
+                print(ex)
                 result = False
                 break
 
