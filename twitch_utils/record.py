@@ -226,7 +226,7 @@ class Stream(object):
         p.start()
         return p
 
-    def stream_url(self) -> str:
+    def stream_url(self) -> Union[str, None]:
         if not self.live and self._stream_url:
             return self._stream_url
 
@@ -240,11 +240,13 @@ class Stream(object):
         sl_proc.wait()
 
         url = sl_proc.stderr.readline().strip()
+
+        if sl_proc.returncode != 0:
+            print(url)
+            return None
+
         self._stream_url = url
         return url
-
-    def clip(self) -> Clip:
-        return Clip(self.stream_url())
 
 
 def generate_filename(vod_id, part):
@@ -421,9 +423,17 @@ class RepairThread(Thread):
     def run(self):
         self.session.recording.wait()
 
-        if not self.hls:
-            self.hls = SimpleHLS(self.stream.stream_url())
+        url = None
 
+        while not url:
+            url = self.stream.stream_url()
+
+            if not url:
+                print('WARN: Unable to get VOD URL via streamlink')
+                print('Retrying in 60 seconds...')
+                sleep(60)
+
+        self.hls = SimpleHLS(url)
         offset = self.hls.offset()
 
         missing_parts = []
