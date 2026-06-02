@@ -107,7 +107,7 @@ class Timeline(list):
         offset, step, monotonous = clips[0].keyframes()
         missing = []
 
-        while pos < self.end:
+        while pos and pos < self.end:
             try:
                 candidates = self.find_clip(clips, pos)
             except MissingRangeError as ex:
