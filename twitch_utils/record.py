@@ -31,8 +31,6 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Union
 
-from twitch_utils.hls import SimpleHLS
-
 try:
     import streamlink
     from parse import compile
@@ -50,6 +48,8 @@ from subprocess import Popen, PIPE, DEVNULL
 from .clip import Clip
 from .concat import Timeline, MissingRangesError
 from .twitch import TwitchAPI, VodException, VodNotFoundException
+from .hls import SimpleHLS
+from .utils import Counter
 
 
 DEBUG = False
@@ -75,11 +75,11 @@ class Stream(object):
 
         self.result = -1
         self.started = Event()
+        self.killed = Event()
         self._stream_url = None
 
     def copy(self):
-        return Stream(self.url, self.quality, self.threads,
-                      self.api)
+        return Stream(self.url, self.quality, self.threads, self.api)
 
     def _args(self) -> list:
         params: Dict[str, Union[str, int]] = {
@@ -140,6 +140,11 @@ class Stream(object):
             line = sl_proc.stderr.readline()
 
             if not line:
+                break
+
+            if self.killed.is_set():
+                self.killed.clear()
+                sl_proc.terminate()
                 break
 
             if DEBUG:
@@ -222,9 +227,15 @@ class Stream(object):
 
     def download_async(self, dest: str) -> Thread:
         self.started.clear()
-        p = Thread(target=self._target_download, args=(dest,))
-        p.start()
-        return p
+        self.killed.clear()
+
+        self.proc = Thread(target=self._target_download, args=(dest,))
+        self.proc.start()
+        return self.proc
+    
+    def stop(self):
+        self.killed.set()
+        self.proc.join()
 
     def stream_url(self) -> Union[str, None]:
         if not self.live and self._stream_url:
@@ -267,31 +278,6 @@ def create_timeline(vod_id, parts):
     return Timeline(clips)
 
 
-class Counter:
-    def __init__(self, value = 0):
-        self._value = value
-        self.lock = Lock()
-
-    def set(self, value):
-        with self.lock:
-            self._value = value
-            return self._value
-
-    def inc(self):
-        with self.lock:
-            self._value += 1
-            return self._value
-    
-    def dec(self):
-        with self.lock:
-            self._value -= 1
-            return self._value
-
-    @property
-    def value(self):
-        return self._value
-
-
 @dataclass
 class RecordingSession:
     vod: str
@@ -300,6 +286,9 @@ class RecordingSession:
     recording: Event = field(default_factory=Event)
     dirty: Event = field(default_factory=Event)
     exit_code = -1
+
+    record: Union[None, Thread] = None
+    repair: Union[None, Thread] = None
 
     def next_file(self) -> str:
         return generate_filename(self.vod, self.counter.inc() - 1)
@@ -313,19 +302,22 @@ class RecordThread(Thread):
         super().__init__()
 
         self.session = session
+        session.record = self
+
         self.stream = Stream(f'https://twitch.tv/{channel_name}',
                              api=session.api,
                              quality=quality,
                              threads=threads,
                              live=True)
         self.is_online = is_online
+        self.clip = None
 
     def run(self):
         result = -1
 
         while result != 0:
             filename = self.session.next_file()
-            proc = self.stream.download_async(filename)
+            self.proc = self.stream.download_async(filename)
 
             # Wait for possible early exit
             self.stream.started.wait()
@@ -336,10 +328,26 @@ class RecordThread(Thread):
                 else:
                     break
 
+            self.clip = Clip(filename)
+
+            if self.session.counter.value > 1:
+                try:
+                    timeline = create_timeline(self.session.vod, self.session.counter.value)
+                    height = timeline.height
+                except MissingRangesError as ex:
+                    height = ex.height
+
+                if self.clip.height < height:
+                    print(f'WARN: Clip {filename} has lower resolution, '
+                          'interrupting...')
+                    self.stream.stop()
+                    self.session.exit_code = 1  # retry
+                    continue
+
             self.session.recording.set()
             self.session.dirty.set()
 
-            proc.join()
+            self.proc.join()
             result = self.stream.result
 
             print(f'Finished download of live stream (exit code: {result})')
@@ -365,6 +373,7 @@ class RepairThread(Thread):
         super().__init__()
 
         self.session = session
+        session.repair = self
 
         if not vod_url:
             vod_url = f'https://twitch.tv/videos/{session.vod}'
@@ -457,6 +466,15 @@ class RepairThread(Thread):
                         break
                 except MissingRangesError as ex:
                     tl = None
+
+                    if self.session.record.clip.height != ex.height:
+                        print('WARN: Current record session has lower '
+                              'resolution, restarting...')
+                        self.session.record.stream.stop()
+                        self.session.exit_code = 1  # retry
+
+                    # Ignore unbound - RecordThread's responsibility
+                    ex.ranges = [r for r in ex.ranges if r[1] != None]
 
                     if ex.start - offset > 1:
                         ex.ranges.append((offset, ex.start))

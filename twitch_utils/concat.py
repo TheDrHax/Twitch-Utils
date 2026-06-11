@@ -51,12 +51,13 @@ class MissingRangeError(Exception):
 
 
 class MissingRangesError(Exception):
-    def __init__(self, ranges, start, end):
+    def __init__(self, ranges, timeline):
         super().__init__('Timeline incomplete, missing: ' +
                          ', '.join(f'{r[0]}~{r[1]}' for r in ranges))
         self.ranges = ranges
-        self.start = start
-        self.end = end
+        self.start = timeline.start
+        self.end = timeline.end
+        self.height = timeline.height
 
 
 class Timeline(list):
@@ -92,11 +93,10 @@ class Timeline(list):
     def __init__(self, clips: list[Clip], min_overlap: float = 10):
         self.start = min([clip.start for clip in clips])
         self.end = max([clip.end for clip in clips])
-
-        height = max(c.height for c in clips)
+        self.height = max(c.height for c in clips)
 
         for clip in clips.copy():
-            if clip.height != height:
+            if clip.height != self.height:
                 print(f'WARN: Clip {clip.name} has inconsistent resolution, '
                       'ignoring...', file=sys.stderr)
                 clips.remove(clip)
@@ -146,7 +146,7 @@ class Timeline(list):
                 missing.append((b.start, a.end))
 
         if len(missing) > 0:
-            raise MissingRangesError(missing, self.start, self.end)
+            raise MissingRangesError(missing, self)
 
     def ffconcat_map(self) -> str:
         return '\n'.join([
