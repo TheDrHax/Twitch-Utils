@@ -38,12 +38,12 @@ def parse_usher(res: str) -> Dict[str, str]:
     quality = None
     source = False
 
-    p = re.compile('.*STABLE-VARIANT-ID="(.*?)".*')
+    p = re.compile('.*(VIDEO|STABLE-VARIANT-ID)="(.*?)".*')
 
     for line in res.split('\n'):
         if line.startswith('#EXT-X-STREAM-INF:'):
             if m := p.match(line):
-                quality = m.group(1)
+                quality = m.group(2)
             
             if 'IVS-VARIANT-SOURCE="source"' in line:
                 source = True
@@ -56,6 +56,10 @@ def parse_usher(res: str) -> Dict[str, str]:
 
             quality = None
             source = False
+
+    if 'chunked' not in streams:
+        first_key = list(streams.keys())[0]
+        streams['chunked'] = streams[first_key].replace(first_key, 'chunked')
 
     return streams
 
