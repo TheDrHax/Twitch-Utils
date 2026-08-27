@@ -443,7 +443,15 @@ class RepairThread(Thread):
                 sleep(60)
 
         self.hls = SimpleHLS(url)
-        offset = self.hls.offset()
+
+        while True:
+            try:
+                offset = self.hls.offset()
+                break
+            except ConnectionError:
+                print('WARN: VOD is not ready')
+                print('Retrying in 60 seconds...')
+                sleep(60)
 
         missing_parts = []
 
