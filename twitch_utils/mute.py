@@ -124,7 +124,7 @@ def main(argv=None):
                 '-strict', '-2']
 
     command += ['-filter_complex', filters,
-                '-map', '0:v', '-map', '[audio]', fo]
+                '-map', '0:v?', '-map', '[audio]', fo]
 
     if run(command).returncode != 0:
         if os.path.exists(fo):
