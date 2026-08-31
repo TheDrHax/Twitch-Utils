@@ -1,10 +1,8 @@
 requests
 retry-requests
 python-dateutil
-streamlink==5.5.1
+streamlink==8.1.0
 docopt==0.6.2
-praat-parselmouth==0.4.0
-numpy<1.19.0,>=1.16.0
-tensorflow==2.3.0
-spleeter==2.2.1
+praat-parselmouth==0.4.7
+spleeter==2.4.2
 parse==1.19.0

@@ -14,10 +14,10 @@ EXTRAS = {
         'parse>=1.19.0'
     ],
     'offset': [
-        'praat-parselmouth>=0.4'
+        'praat-parselmouth>=0.4.4'
     ],
     'mute': [
-        'spleeter>=2.3.0'
+        'spleeter>=2.4.2'
     ]
 }
 
@@ -54,7 +54,7 @@ setup(
 
     classifiers=[
         'Environment :: Console',
-        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Intended Audience :: End Users/Desktop',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
