@@ -495,8 +495,8 @@ class RepairThread(Thread):
                     missing_parts = [(tl.end, None)]
 
                 for (start, end) in missing_parts:
-                    start_o = max(0, start - 30 - offset)
-                    end_o = (end + 30 - offset) if end else None
+                    start_o = max(0, start - 60 - offset)
+                    end_o = (end + 60 - offset) if end else None
 
                     print(f'Downloading segment {start}~{end}'
                           f'({start_o}~{end_o})')

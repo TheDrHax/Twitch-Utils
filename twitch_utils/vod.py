@@ -167,8 +167,8 @@ def main(argv=None):
             filename = session.next_file()
             print(f'Downloading {start}~{end} into {filename}')
 
-            start = max(0, start - 30 - offset)
-            end = (end + 30 - offset) if end else None
+            start = max(0, start - 60 - offset)
+            end = (end + 60 - offset) if end else None
 
             with open(filename, 'wb') as fo:
                 result = hls.download(fo, start=start, end=end)
