@@ -98,7 +98,10 @@ class Stream(object):
         args.append(self.url)
 
         if self.quality:
-            args.append(self.quality)
+            if not self.live and self.quality == 'audio_only':
+                args.append('audio')
+            else:
+                args.append(self.quality)
 
         args.append('-O')
 
@@ -122,7 +125,7 @@ class Stream(object):
 
         ff_cmd = ['ffmpeg', '-hide_banner',
                   '-i', '-',
-                  '-map', '0:v', '-map', '0:a',
+                  '-map', '0:v?', '-map', '0:a?',
                   '-c', 'copy', '-copyts',
                   '-f', 'mpegts', '-']
         ff_kwargs = {'stdin': sl_proc.stdout,

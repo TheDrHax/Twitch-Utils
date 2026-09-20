@@ -37,7 +37,7 @@ class Clip(object):
 
         self.container = container
 
-        info = self.ffprobe('format=duration,start_time,format_name')['format']
+        info = self.ffprobe('format=duration,start_time,format_name').get('format', {})
         self.start = float(info.get('start_time', 0))
 
         duration = float(info.get('duration', 0))
@@ -54,7 +54,7 @@ class Clip(object):
         self.inpoint = self.start
         self.outpoint = self.end
 
-        info = self.ffprobe('stream=id,codec_type,height')['streams']
+        info = self.ffprobe('stream=id,codec_type,height').get('streams', [])
         streams = dict(map(lambda s: (s['codec_type'], s), info))
 
         self.streams = [s[0] for s in streams.keys()]
