@@ -98,10 +98,7 @@ class Stream(object):
         args.append(self.url)
 
         if self.quality:
-            if not self.live and self.quality == 'audio_only':
-                args.append('audio')
-            else:
-                args.append(self.quality)
+            args.append(self.quality)
 
         args.append('-O')
 
